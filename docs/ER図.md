@@ -74,7 +74,7 @@ erDiagram
 
 ## 現状実装との差
 
-現在のコードには `demoIntakes`, `demoPets`, `demoMatchingSnapshots`, `demoObservations` 用RepositoryとRulesがあるが、ここに示すAI_ANALYSIS分離モデルの実配備・実保存は確認されていない。Firestore受付はcreate-onlyのため、AI後に更新する場合は保存順またはデータモデルとRulesを変更する必要がある。OwnerFormからAI呼出しは未接続。`/api/media` のR2永続保存は目標モデルと不一致である。
+現在のコードには `demoIntakes`, `demoPets`, `demoMatchingSnapshots`, `demoObservations` 用RepositoryとRulesがあり、AppはAI解析後の分析結果を含む受付をcreateし、プロフィールとマッチングを保存する。Firestore受付はcreate-onlyだが、AI処理が先に完了する保存順で構成される。Firebase実配備/read-backは未確認。OwnerFormからWorker分析へのコード接続は存在する一方、実Worker/OrcaRouter応答は未確認。現Workerの `/api/media` は永続保存を無効化し、解析用data URLを直接渡す。
 
 現在コードとRulesの実装概略：
 

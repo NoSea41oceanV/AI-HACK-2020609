@@ -19,7 +19,7 @@
 - Firebase Sparkのみ（Firestore、Hosting）。Firebase Cloud Functions / Cloud Storageを使わない。
 - Cloudflare Workers Freeのみ。
 - OrcaRouter Secretは再発行済みのものをCloudflare Worker Secretへだけ設定する。以前チャットに貼られたキーを使わない。
-- Firebase Web config/Project IDは未確認。外部AIへ送信可能なのは性格・遊び方・注意事項・写真・動画のみで、飼い主名・連絡先・音声・request bodyは送らず記録しない。Cloudflare Workers Freeの `pet-hotel-agent-api` 作成と新規Secretの暗号化登録は報告済みだが、現在コードの配備・実リクエストは未確認。
+- Firebase Project ID `pawpair-ai-hack-2026`、Firestore `asia-northeast1`、Sparkプランは確認済み。Web App configと実保存・配備は未確認。外部AIへ送信可能なのは性格・遊び方・注意事項・写真・動画のみで、飼い主名・連絡先・音声・request bodyは送らず記録しない。Cloudflare Workers Freeの `pet-hotel-agent-api` 作成と新規Secretの暗号化登録は報告済みだが、現在コードの配備・実リクエストは未確認。
 
 ## 禁止するデモ表現
 

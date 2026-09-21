@@ -15,15 +15,16 @@
 | 相性・最適化 | TypeScript決定ロジック。全ペア採点後に最適化 |
 | 利用者 | 単一利用者、固定URL |
 
+Firebase Project IDは `pawpair-ai-hack-2026`、Firestoreリージョンは `asia-northeast1`、プランはSparkと報告されている。Firebase Web App config、実データのread-back、Hosting配備は未確認。
+
 Firebase Cloud Functions、Firebase Cloud Storage、Workers Paidを使わない。
 
 ## 2. 現状コードと差分
 
-- Firebase未設定時、RepositoryはlocalStorageへ自動切替する。確定要件では本番フローの成功にこの経路を使わない。
-- Firebase設定時、受付をlocalStorage保存後にFirestoreへcreateするコードがある。実Firebase保存とread-backは未確認。
-- OwnerFormの送信処理はAI Workerを呼ばず、ローカルキーワード変換でPetProfileを作る。確定要件に反するため、AI失敗/未実行時の成功経路として残さない。
-- `AIWorkerClient` とWorker `/api/analyze` はあるが、フォームから未接続。実Worker・OrcaRouter応答は未確認。
-- `/api/media` はR2へ原本を永続保存する。解析後の媒体破棄要件と衝突し、目標フローでは利用しない。
+- RepositoryにはlocalStorage実装もあるが、AppはFirebase未設定時にエラー表示し、成功扱いでlocalStorageへ切り替えない。
+- AppはOwnerFormからWorker解析を実行し、構造化分析結果を含む受付をFirestoreへcreateする。その後Profileを保存・読戻ししてから全ペア採点・最適化を保存する。実Firebase read-backは未確認。
+- `AIWorkerClient` とWorker `/api/analyze` はフォーム送信動線へ接続済み。ユーザー許可項目のみpayloadを作る。実Worker/OrcaRouter応答は未確認。
+- 現Workerコードの `/api/media` は410を返し永続保存しない。画像・動画はdata URLとして分析APIに直接送り、受付にはメタデータだけを保存する。動画内音声を除去する処理は別途確認が必要。
 - OwnerIntakeはFirestore create-onlyで、AI解析後の結果更新ができない。結果を含めて解析後に一度だけcreateするか、AI結果用の明示的な保存モデル/Rulesを追加する。
 - 画像/動画のフォーム上限はWorker上限より大きい。統合時に共通制限へ揃える。
 - 動画ファイルの拒否はあるが、動画内音声トラックを除去・除外する機構は確認できない。
@@ -54,7 +55,7 @@ Firebase Cloud Functions、Firebase Cloud Storage、Workers Paidを使わない�
 | `GET /health` | Workerの状態確認 | Secret値を返さない |
 | `POST /api/analyze` | 文章と一時画像/動画をOrcaRouterへ送り、構造化分析を返す | 飼い主名・連絡先・音声なし。失敗は明示エラー |
 
-永続R2へのmedia upload APIは本要件では使用しない。処理中の一時バッファから解析し、完了/失敗/timeout後に破棄する。旧API/実装が残る間は受入完了としない。API keyは `ORCAROUTER_API_KEY` SecretとしてWorkerだけに設定し、以前チャットへ貼付したキーは再利用しない。
+永続R2へのmedia upload APIは本要件では使用しない。現コードは画像・動画を一時data URLで分析リクエストに含め、永続保存APIを無効化している。実配備後に完了/失敗/timeout後も媒体が残らないことを実E2Eで確認する。API keyは `ORCAROUTER_API_KEY` SecretとしてWorkerだけに設定し、以前チャットへ貼付したキーは再利用しない。
 
 ## 6. ペア採点と最適化
 
@@ -72,7 +73,7 @@ Firebase Cloud Functions、Firebase Cloud Storage、Workers Paidを使わない�
 
 ## 8. 設定・Secret
 
-Firebase Web configとProject IDは実値を `.env.example` 等へ書かず、ローカル環境設定へ登録する。Cloudflare Workers Freeの `pet-hotel-agent-api` 作成と、新規 `ORCAROUTER_API_KEY` Secretの暗号化登録は報告済みだが、現在のWorkerソース配備・Secret参照・実リクエストは未確認。以前チャットに貼られたキーは使用禁止。許可済みの外部送信範囲は性格・遊び方・注意事項・写真・動画に限る。飼い主名・連絡先・音声とrequest bodyはログへ出さない。Firebase設定と実接続確認が済むまで実フローの完了扱いにしない。
+Firebase Project ID `pawpair-ai-hack-2026` / Firestore `asia-northeast1` / Sparkは確認済み。Web App configは実値を `.env.example` 等へ書かず、ローカル環境設定へ登録する。Cloudflare Workers Freeの `pet-hotel-agent-api` 作成と、新規 `ORCAROUTER_API_KEY` Secretの暗号化登録は報告済みだが、現在のWorkerソース配備・Secret参照・実リクエストは未確認。以前チャットに貼られたキーは使用禁止。許可済みの外部送信範囲は性格・遊び方・注意事項・写真・動画に限る。飼い主名・連絡先・音声とrequest bodyはログへ出さない。実接続確認が済むまで実フローの完了扱いにしない。
 
 ## 9. 検証・完了条件
 

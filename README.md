@@ -6,7 +6,7 @@
 
 目標の流れは、飼い主フォーム → Firebase Sparkへの実保存 → Cloudflare Workers Freeへの実リクエスト → OrcaRouterによる文章・写真・動画の実解析 → 性格パラメータと分析結果のFirebase保存 → 全ペア実採点 → 部屋最適化です。
 
-この流れは**まだ実配備・実E2Eで確認されていません**。コードにある機能とサービス上の実稼働を区別してください。現在、OwnerFormからWorkerを呼ぶ接続はなく、FirebaseとOrcaRouterも実設定・実接続を確認していません。進捗は [TASKS.md](TASKS.md) を参照してください。
+この流れは**実サービスへの配備と実E2Eが未確認**です。アプリコードには飼い主フォームからWorker分析、Firestore保存、プロフィール読戻し、全ペア採点・最適化までの動線があります。Firebase Project ID・リージョン・プランとCloudflare Worker/Secret作成は確認済みですが、Firebase Web App config、現行コードの各サービスへの配備、OrcaRouter実応答は未確認です。進捗は [TASKS.md](TASKS.md) を参照してください。
 
 ## 固定要件
 
@@ -31,11 +31,11 @@ npm run dev
 - スタッフ画面: `/`
 - 飼い主フォーム: `/?view=owner`
 
-現在はFirebase設定がない場合にlocalStorageリポジトリが選ばれます。このローカル動作は開発用であり、本番フローの完了やAI処理の成功を示しません。AI接続に失敗した場合は成功データを作らずエラーにします。
+RepositoryにはFirebase未設定時のlocalStorage実装もありますが、アプリ画面はFirebase未設定をエラーにしてローカル代替の成功扱いをしません。AI接続に失敗した場合も明示エラーになります。
 
 ## 接続設定・配備
 
-Firebase Web configとProject IDは未確認です。Cloudflare Workers Freeに `pet-hotel-agent-api` が作成され、新しい `ORCAROUTER_API_KEY` Secret が暗号化登録されたとの報告はありますが、現在のWorkerソース配備と実リクエストは未確認です。外部送信が許可されたのは性格・遊び方・注意事項・写真・動画のみです。飼い主名・連絡先・音声はWorkerリクエスト、OrcaRouter送信、ログへ含めません。以前チャットに貼られたキーは使用せず、新しいSecretの値をブラウザ、リポジトリ、Firestore、ログへ出しません。
+Firebase Project ID `pawpair-ai-hack-2026`、Firestoreリージョン `asia-northeast1`、Sparkプランは確認済みです。Firebase Web App config、実Firestore read-back、Hosting配備は未確認です。Cloudflare Workers Freeに `pet-hotel-agent-api` が作成され、新しい `ORCAROUTER_API_KEY` Secret が暗号化登録されたとの報告はありますが、現在のWorkerソース配備と実リクエストは未確認です。外部送信が許可されたのは性格・遊び方・注意事項・写真・動画のみです。飼い主名・連絡先・音声はWorkerリクエスト、OrcaRouter送信、ログへ含めません。以前チャットに貼られたキーは使用せず、新しいSecretの値をブラウザ、リポジトリ、Firestore、ログへ出しません。
 
 実設定値を作成・配備する前に、タスク台帳の保留事項を解消してください。Firebase SparkとWorkers Freeを越える設定へ移行しません。配備手順は [DEPLOYMENT.md](docs/DEPLOYMENT.md) が担当文書です。
 

@@ -24,13 +24,15 @@
 | 料金 | Firebase SparkとCloudflare Workers Freeのみ。Firebase有料機能を使わない |
 | Secret | 以前チャットに貼られたキーは使用禁止。再発行キーをWorker Secretにだけ設定 |
 
+Firebase Project IDは `pawpair-ai-hack-2026`、Firestoreリージョンは `asia-northeast1`、プランはSparkと確認されている。Web App configと実Firestore保存確認は未確認。
+
 ## 3. 現在の実装状態
 
 - OwnerFormはフォーム入力と画像・動画の選択、ブラウザ内プレビューを実装している。
-- Firebase未設定時にlocalStorageへ自動で切り替わる。設定時は受付をlocalStorage保存後にFirestoreへcreateするコードがある。Firebase実プロジェクトへの接続、永続保存のread-backは未確認。
-- Appの現送信処理はAIを呼ばず、キーワード規則でPetProfileを生成して `ready` にする。この動作は確定要件に反するため、AI成功扱いに使用してはならない。
-- Workerクライアントと `/api/analyze` は実装されているが、OwnerFormのフローから未接続。実OrcaRouter応答・Worker配備は未確認。
-- WorkerにはR2へ画像・動画を永続保存する経路がある。解析後にメディアを残さない要件に反するため、目標構成では使わず、一時入力に変更する必要がある。
+- AppはFirebase未設定をエラーにし、localStorageの成功代替へは切り替えない。Firebase Project ID/リージョン/Sparkは確認済みだが、Web App configとread-backは未確認。
+- OwnerFormの送信処理はWorker解析を行い、分析結果・性格パラメータを含む受付をFirestoreへ保存する。その後プロフィールを保存し読戻しを確認してからマッチングを計算・保存する。サービス上の実処理は未確認。
+- Workerクライアントと `/api/analyze` はフォームへ接続済みだが、現行Workerソースの配備と実OrcaRouter応答は未確認。
+- 現Workerコードは永続media uploadを410で無効化し、画像・動画を一時data URLで解析する。動画内音声の除外は確認が必要。
 - 全ペア列挙、スコア計算、制約下の部屋探索コードはある。外部データでの実E2Eは未確認。
 - ブラウザ選択の音声ファイルとWorkerへの音声MIME入力は拒否される。一方、動画内音声トラックを除く仕組みは未確認であり、音声を含まない動画または無音化・フレーム抽出で送信する必要がある。
 
@@ -44,7 +46,7 @@
 6. 解析終了時に一時メディアを破棄し、永続ストレージやログへ残さない。
 7. AI失敗は `error` 状態として保存・表示し、再試行操作を提示する。AI未実行のプロフィールを成功扱いしない。
 
-現在は2〜7の一部が未実装または未接続。ER図とアーキテクチャ図は目標形と未達項目を併記する。
+処理のコード動線は接続されたが、Firebase Web App設定、現行コードのサービス配備、実AI結果/read-backを含むE2Eが未確認。ER図とアーキテクチャ図はコード状態と外部実行証跡を分けて示す。
 
 ## 5. 性格パラメータ
 

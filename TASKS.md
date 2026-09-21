@@ -5,7 +5,7 @@
 ## 最重要の保留事項・確定した送信範囲
 
 - **外部送信範囲**: ユーザー許可済みなのは性格・遊び方・注意事項・写真・動画のみ。飼い主名・連絡先・音声はWorkerリクエスト、OrcaRouter送信、ログのいずれにも含めない。リクエスト本文をログ出力しない。
-- **Firebase Web config / Project ID**: 実Firestore保存とHosting配備に必要。値が渡されておらず、実接続・実配備は未確認。
+- **Firebase設定・接続**: Project ID `pawpair-ai-hack-2026`、Firestore `asia-northeast1`、Sparkプランは確認済み。Firebase Web App config、実Firestore read-back、Hosting配備は未確認。
 - **Cloudflare Worker接続**: Freeプランで `pet-hotel-agent-api` が作成され、新規 `ORCAROUTER_API_KEY` Secret がDashboard上で暗号化登録されたとの報告あり。現在のリポジトリコードの配備、Secret参照、実HTTP/OrcaRouter応答は未確認。
 - **外部AI送信承認**: 飼い主が入力した性格文と選択写真・動画をOrcaRouterへ送る処理の明示承認が必要。飼い主名・連絡先・音声は送らない。
 - **料金境界**: FirebaseはSparkのみ。CloudflareもWorkers Freeのみ。上位プラン、課金移行、従量課金機能は採用しない。
@@ -25,9 +25,9 @@ Codexのworktree準備中client IDは統括タスク側で管理する。ここ�
 
 | ID | 目的 | 状態 | 保留理由 / 必要なユーザー回答 | 次の一手 | 依存 | 主な担当ファイル | 検証方法 |
 |---|---|---|---|---|---|---|---|
-| [01] | Firebase Spark実保存と固定URL配備 | worktree準備中 | Firebase Web config、Project ID、実配備の実施時期 | Firebase値を安全な設定経路で受領後、Spark限定でFirestore/Hostingを接続 | なし | `src/lib/firebase.ts`, `src/data/firestore*`, `firestore.rules`, `firebase.json`, `docs/DEPLOYMENT.md` | Firestore実保存のread-back、Rules確認、Sparkプラン確認、Hosting URLの実配備確認 |
-| [02] | Cloudflare Workers Freeへ実配備 | worktree準備中 | Worker `pet-hotel-agent-api` と暗号化済み新Secretの作成報告あり。コード配備・対象アカウント上の実接続は未確認 | 現行WorkerソースをFree Workerへ配備しhealthと実HTTPを確認 | [01]のURL/CORS設定 | `worker/**`, `wrangler.toml.example`, `docs/DEPLOYMENT.md` | Worker URLへの実HTTP、ログにPII/secretがないこと、Workers Free利用 |
-| [03] | OrcaRouter実解析と失敗制御 | worktree準備中 | 許可されたデータ範囲は明示済み。新Secret登録の報告あり。旧貼付キーは禁止。現ソース配備と実応答は未確認 | WorkerのSecret参照を実配備環境で確認し、許可された文章・画像・動画の実解析と失敗表示を確認 | [02] | `src/lib/workerClient.ts`, `worker/**`, `src/domain/intakeProfile.ts` | 実解析リクエスト/応答、AI失敗時の明示エラー、PII/音声/本文ログ非含有を確認 |
+| [01] | Firebase Spark実保存と固定URL配備 | worktree準備中 | Project ID `pawpair-ai-hack-2026`、Firestore `asia-northeast1`、Sparkは確認済み。Web App configと実配備権限は未確認 | Firebase Web App configを安全な設定経路で登録し、Spark限定でFirestore/Hostingを接続 | なし | `src/lib/firebase.ts`, `src/data/firestore*`, `firestore.rules`, `firebase.json`, `docs/DEPLOYMENT.md` | Firestore実保存のread-back、Rules確認、Sparkプラン確認、Hosting URLの実配備確認 |
+| [02] | Cloudflare Workers Freeへ実配備 | worktree準備中 | Worker `pet-hotel-agent-api` と暗号化済み新Secretの作成報告あり。現行コード配備・実接続は未確認 | 現行WorkerソースをFree Workerへ配備しhealthと実HTTPを確認 | Firebase側CORS設定 | `worker/**`, `wrangler.toml.example`, `docs/DEPLOYMENT.md` | Worker URLへの実HTTP、ログにPII/secretがないこと、Workers Free利用 |
+| [03] | OrcaRouter実解析と失敗制御 | worktree準備中 | 許可されたデータ範囲は明示済み。新Secret登録報告あり。旧貼付キーは禁止。実応答は未確認 | デプロイWorkerのSecret参照とOrcaRouter実解析を確認 | [02] | `src/lib/workerClient.ts`, `worker/**`, `src/domain/intakeProfile.ts` | 実解析リクエスト/応答、AI失敗時の明示エラー、PII/音声/本文ログ非含有を確認 |
 | [04] | 入力保存・PII境界・媒体一時処理 | worktree準備中 | Firebase設定は[01]。送信範囲は上記の限定許可に従う | 飼い主情報はFirebaseへ保存しAI送信payloadから除外、画像/動画は解析後に破棄、解析結果は保存 | [01], [03] | `src/pages/OwnerForm.tsx`, `src/data/intakeRepository.ts`, `src/data/firestoreIntakeRepository.ts`, `worker/index.ts`, `firestore.rules` | Firebase read-back、AI payload検査、媒体の保存/削除確認、分析結果の永続化確認 |
 | [05] | 全ペア実採点と部屋割り最適化の実接続 | worktree準備中 | 結果を使うFirestore実データ接続は[01][04] | 保存された性格パラメータから全組合せを採点し、全件終了後に最適配置を保存・表示 | [01], [04] | `src/domain/**`, `src/pages/**`, `src/data/firestorePetRepository.ts`, `src/data/firestoreOperationRepository.ts` | n(n-1)/2全ペア、採点完了後に最適化、制約/解なし結果を検証 |
 | [06] | README・TASKS・設計書・図を確定要件と実装事実へ同期 | 完了 | 実配備・実E2Eの証跡は未入手 | 統括側でレビューし、実装・配備証跡に応じて状態を更新 | [01]-[05]の現状を読取確認 | `README.md`, `TASKS.md`, `docs/ペットホテル自律AIエージェント_設計書_v4.md`, `docs/実装設計書_Firebase版.md`, `docs/ER図.md`, `docs/アーキテクチャ図.md`, `docs/HACKATHON_CHARTER.md` | 旧表現の横断検索、相対リンク、Mermaid fence、`git diff --check` |
@@ -35,11 +35,11 @@ Codexのworktree準備中client IDは統括タスク側で管理する。ここ�
 ## 現在のコードから確認したこと
 
 - `src/pages/OwnerForm.tsx` は飼い主名・連絡先・ペット情報と写真/動画を受け取る。
-- `src/data/index.ts` はFirebase設定時、受付をlocalStorage保存後にFirestoreへcreateする。これは「localStorageのみ」「create-onlyで読めない」という旧設計と異なるが、実Firebase設定でのread-backは未確認。
-- `src/lib/workerClient.ts` と `worker/index.ts` にWorker契約、分析・メディアAPI、応答検証がある。ただしOwnerFormからの呼出しは確認できず、OrcaRouterへの実リクエストも未確認。
-- WorkerにはR2へ画像・動画を保存するAPIがある。確定要件の「解析後に永続保存しない」に合わないため、削除/一時処理へ改める必要がある。
-- `src/domain/intakeProfile.ts` はキーワード規則によるローカル性格値生成を持つ。これをAI失敗時の成功代替に使わない。
-- WorkerとSecretの作成報告はあるが、現行ソースの実配備、Firebaseプロジェクト、実OrcaRouter応答、実E2Eの証跡はこの作業開始時点では確認できない。
+- `src/App.tsx` はOwnerFormからAI解析を先に実行し、分析結果・性格パラメータを含む受付をFirestoreへ保存する。その後プロフィールを保存してFirestoreから読戻し、全ペア採点・最適化を保存する。実Firebase接続は未確認。
+- `src/lib/workerClient.ts` と `worker/index.ts` はフォームの性格・遊び方・注意事項と画像・動画を `/api/analyze` へ送る経路、入力/応答検証を実装している。実OrcaRouterリクエストは未確認。
+- 現Workerコードの `/api/media` は410で永続保存を拒否し、分析へdata URLを直接渡す。実配備先にもこのバージョンが反映済みかは未確認。
+- Firebase/Workerが未設定ならアプリはエラー表示し、localStorageの成功動線に切り替えない。domain層にはローカル推定関数が残るが、フォーム送信ではWorker解析結果を必須にする。
+- WorkerとSecretの作成、Firebase Project ID/リージョン/Sparkの報告はあるが、現行ソースの実配備、Firebase Web config/read-back、実OrcaRouter応答、実E2Eの証跡はこの作業開始時点では確認できない。
 
 ## タスク状態の意味
 
