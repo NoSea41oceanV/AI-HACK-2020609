@@ -278,7 +278,10 @@ export class AIWorkerClient {
       if (!["http:", "https:"].includes(parsed.protocol)) throw new WorkerClientError("AI Worker URLはHTTP(S)で指定してください。", "invalid_worker_url");
       this.state = { kind: "enabled", baseUrl: parsed.toString().replace(/\/$/, "") };
     }
-    this.fetchImpl = options.fetchImpl ?? fetch;
+    // Browser-native fetch is brand-checked and throws "Illegal invocation"
+    // when called as an instance property (`this.fetchImpl(...)`). Keep the
+    // expected Window/Worker global receiver even for injected test clients.
+    this.fetchImpl = (options.fetchImpl ?? fetch).bind(globalThis);
     this.timeoutMs = Math.max(100, options.timeoutMs ?? 60_000);
     this.videoFrameExtractor = options.videoFrameExtractor ?? extractSilentVideoFrames;
   }

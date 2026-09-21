@@ -31,6 +31,23 @@ describe("AIWorkerClient", () => {
     await expect(client.health()).rejects.toMatchObject({ code: "worker_disabled" });
   });
 
+  it("invokes fetch with the browser global receiver", async () => {
+    let receiver: unknown;
+    const brandedFetch = function (this: unknown) {
+      receiver = this;
+      return Promise.resolve(new Response(JSON.stringify({
+        ok: true,
+        service: "pet-hotel-agent-api",
+        orcaRouterConfigured: true,
+        mediaStorageConfigured: false,
+      }), { status: 200 }));
+    } as typeof fetch;
+    const client = new AIWorkerClient("https://worker.example", { fetchImpl: brandedFetch });
+
+    await expect(client.health()).resolves.toMatchObject({ ok: true });
+    expect(receiver).toBe(globalThis);
+  });
+
   it("rejects audio before making a network request", async () => {
     const fetchMock = vi.fn();
     const client = new AIWorkerClient("https://worker.example", { fetchImpl: fetchMock });
