@@ -1,10 +1,10 @@
 # ペットホテルAIマッチングエージェント 設計書 v4
 
-> 本書は確定した目標仕様と、2026-09-22時点で確認できるコード状態を分けて記す。外部サービスの配備・実E2Eは未確認であり、本番稼働を意味しない。
+> 本書は確定した目標仕様と、2026-09-22時点の確認済み状態を分けて記す。Cloudflare Worker / OrcaRouterの実疎通は確認済みだが、Firebase配備・read-backと全体E2Eは未確認であり、本番稼働を意味しない。
 
 ## 1. 目的
 
-飼い主から得た情報をもとに、犬の性格傾向を構造化し、全頭の全ペアを評価した後で、部屋数・定員・安全制約を満たす全体最適な部屋割りを提案する。AIは文章・写真・動画の分析を担当する。安全制約、数値スコア、部屋最適化、最終確定は決定的なアプリ処理とオペレーターが担う。
+飼い主から得た情報をもとに、犬の性格傾向を構造化し、全頭の全ペアを評価した後で、部屋数・定員・安全制約を満たす全体最適な部屋割りを提案する。AIは文章・写真・動画由来の静止画フレームの分析を担当する。安全制約、数値スコア、部屋最適化、最終確定は決定的なアプリ処理とオペレーターが担う。
 
 「デモ」は入力データがサンプルであることを指す。保存、AI呼出、AI分析、マッチング、最適化は本物のサービス・処理で行う。固定結果、擬似AI応答、失敗時の暗黙ローカル代替をデモ成功として見せない。
 
@@ -16,37 +16,37 @@
 | URL | 固定URL。期限付き招待・一回限りURLは設けない |
 | 保存 | 飼い主フォームをFirebaseへ実保存。分析結果と性格パラメータも保存 |
 | AI経路 | ブラウザからCloudflare Workerへ実リクエストし、WorkerからOrcaRouterを呼ぶ |
-| AI入力 | 性格等の文章、写真、動画。飼い主名・連絡先・音声はAIへ送らない |
-| メディア | 分析の一時入力。解析後に写真・動画を永続保存しない。動画内音声も送らない |
+| AI入力 | 性格・遊び方・注意事項、写真、動画由来JPEGフレーム。飼い主名・連絡先・元動画・音声はAIへ送らない |
+| メディア | 写真と動画由来JPEGフレームだけを一時分析。解析後に原本を永続保存しない |
 | 失敗 | Worker/OrcaRouter/保存の失敗はエラーとして表示し、固定結果やローカル判定へ黙って切替えない |
 | マッチング | n頭のn(n-1)/2ペアをすべて採点後、全結果を用いて部屋割りを最適化 |
 | 最終判断 | AIは提案まで。オペレーターが部屋割りを確定 |
 | 料金 | Firebase SparkとCloudflare Workers Freeのみ。Firebase有料機能を使わない |
 | Secret | 以前チャットに貼られたキーは使用禁止。再発行キーをWorker Secretにだけ設定 |
 
-Firebase Project IDは `pawpair-ai-hack-2026`、Firestoreリージョンは `asia-northeast1`、プランはSparkと確認されている。Web App configと実Firestore保存確認は未確認。
+Firebase Project IDは `pawpair-ai-hack-2026`、Web App設定、Firestoreリージョン `asia-northeast1`、Sparkプランまで設定済みである。Firebase CLI本人認証、Hosting / Rules配備、実Firestore保存確認は未確認。
 
 ## 3. 現在の実装状態
 
 - OwnerFormはフォーム入力と画像・動画の選択、ブラウザ内プレビューを実装している。
-- AppはFirebase未設定をエラーにし、localStorageの成功代替へは切り替えない。Firebase Project ID/リージョン/Sparkは確認済みだが、Web App configとread-backは未確認。
-- OwnerFormの送信処理はWorker解析を行い、分析結果・性格パラメータを含む受付をFirestoreへ保存する。その後プロフィールを保存し読戻しを確認してからマッチングを計算・保存する。サービス上の実処理は未確認。
-- Workerクライアントと `/api/analyze` はフォームへ接続済みだが、現行Workerソースの配備と実OrcaRouter応答は未確認。
-- 現Workerコードは永続media uploadを410で無効化し、画像・動画を一時data URLで解析する。動画内音声の除外は確認が必要。
+- AppはFirebase未設定をエラーにし、localStorageの成功代替へは切り替えない。Firebase有効時のOwnerIntakeをlocalStorageへミラーしない。Firebase Project / Web App / リージョン / Sparkは設定済みだが、配備とread-backは未確認。
+- OwnerFormの送信処理はWorker解析を行い、分析結果・性格パラメータを含む受付をFirestoreへ保存する。その後プロフィールを保存しread-backを確認してからマッチングを計算・保存する。Worker / OrcaRouterは確認済みだが、Firestore以降の実処理は未確認。
+- Workerクライアントと `/api/analyze` はフォームへ接続済みで、現行WorkerをWorkers Freeへ配備し、OrcaRouterの実構造化応答を確認済みである。
+- Workerは永続media uploadを410で無効化し、写真と動画由来JPEGフレームだけを一時画像data URLで解析する。動画はブラウザで最大2枚のJPEGへ変換し、元動画と動画内音声を送らない。
 - 全ペア列挙、スコア計算、制約下の部屋探索コードはある。外部データでの実E2Eは未確認。
-- ブラウザ選択の音声ファイルとWorkerへの音声MIME入力は拒否される。一方、動画内音声トラックを除く仕組みは未確認であり、音声を含まない動画または無音化・フレーム抽出で送信する必要がある。
+- ブラウザ選択の音声ファイルを受け付けず、Workerはraw動画・音声MIME入力を415で拒否する。動画の音声トラックは送信せず、抽出した静止画だけを扱う。
 
 ## 4. 登録と分析の目標フロー
 
 1. 飼い主が固定URLのフォームへ入力する。
-2. 入力をFirebaseへ保存する。保存結果を再読込して確認できる。
-3. AI用payloadから飼い主名・連絡先を必ず除外する。
-4. 写真・動画は一時的にWorkerへ渡し、音声を送らずOrcaRouterで文章・画像・動画を分析する。
-5. Workerは許可された構造化結果を返す。アプリは形式検証後に性格パラメータと分析根拠をFirebaseへ保存する。
+2. AI用payloadを性格・遊び方・注意事項から組み立て、飼い主名・連絡先を必ず除外する。
+3. 写真と、動画からブラウザ内で抽出した最大2枚のJPEGフレームを一時的にWorkerへ渡す。元動画・音声は送らない。
+4. WorkerはOrcaRouterの許可された構造化結果を返す。アプリは形式検証後、受付情報、性格パラメータ、分析根拠をFirebaseへcreateする。
+5. 非PIIプロフィールをFirebaseへ保存し、read-backを確認する。
 6. 解析終了時に一時メディアを破棄し、永続ストレージやログへ残さない。
-7. AI失敗は `error` 状態として保存・表示し、再試行操作を提示する。AI未実行のプロフィールを成功扱いしない。
+7. AI失敗は画面に明示し、再試行操作を提示する。失敗した受付やAI未実行プロフィールを成功状態でFirestoreへ保存しない。
 
-処理のコード動線は接続されたが、Firebase Web App設定、現行コードのサービス配備、実AI結果/read-backを含むE2Eが未確認。ER図とアーキテクチャ図はコード状態と外部実行証跡を分けて示す。
+処理のコード動線とCloudflare Worker / OrcaRouter実疎通は確認済みである。Firebase Hosting / Rules配備、実AI結果のFirestore保存/read-backを含むE2Eは未確認である。ER図とアーキテクチャ図はコード状態と外部実行証跡を分けて示す。
 
 ## 5. 性格パラメータ
 
@@ -59,7 +59,7 @@ Firebase Project IDは `pawpair-ai-hack-2026`、Firestoreリージョンは `asi
 | 遊び方 | `chase`, `wrestle`, `tug`, `fetch`, `gentle`, `solo` の集合 |
 | AI分析 | summary、observations、evidence付きtraits、riskFlags、confidence |
 
-これらは現行型の候補であり、AIの実出力・Firebase永続保存は未確認。
+これらを含むOrcaRouterの実構造化出力は確認済みである。Firebase永続保存は未確認。
 
 ## 6. 全ペア採点と部屋最適化
 
@@ -77,10 +77,10 @@ Firebase Project IDは `pawpair-ai-hack-2026`、Firestoreリージョンは `asi
 
 - Firebaseに保存する受付情報と、OrcaRouterへ送る分析入力を別の型・別のpayloadとして扱う。
 - 飼い主名・連絡先をAI payload、Workerログ、AI応答へ含めない。
-- 写真・動画の原本は解析後に破棄する。写真/動画を含むrequest body、URL、例外ログも記録しない。
+- 写真・動画の原本は解析後に破棄する。動画はJPEGフレーム以外をWorkerへ送らない。画像を含むrequest body、URL、例外ログも記録しない。
 - 性格パラメータとAI分析結果は受付IDに紐づけてFirebaseへ保存する。
 - 音声ファイル、音声トラック、音声転写を取り込まない。
-- 単一利用者要件は認証不要を意味するが、インターネット上の公開Rulesを安全な認証と見なさない。実配備前に利用対象とアクセス境界を確認する。
+- 今回は認証を設けず、公開Rulesによる書込みをハッカソン限定で許可する。第三者による匿名書込みと無料枠消費のリスクがあり、安全な本番認証・テナント分離とは見なさない。
 
 ## 8. 無料枠
 
@@ -91,4 +91,4 @@ Firebase Project IDは `pawpair-ai-hack-2026`、Firestoreリージョンは `asi
 
 ## 9. 完了判定
 
-Firebase保存のread-back、Worker実配備とリクエスト、OrcaRouterの実解析、分析結果の再読込、媒体破棄、名前・連絡先・動画音声の非送信、全ペア→最適化の順を含む実E2Eが確認できて初めて本フローを完了とする。実施していないテスト・配備は完了欄に記載しない。詳細は [TASKS.md](../TASKS.md) を参照。
+Worker実配備・health・OrcaRouter実解析は確認済みである。Firebase保存/read-back、分析結果の再読込、媒体破棄、名前・連絡先・元動画・音声の非送信、全ペア→最適化→確定を含む実E2Eが確認できて初めて本フローを完了とする。実施していないテスト・配備は完了欄に記載しない。詳細は [TASKS.md](../TASKS.md) を参照。

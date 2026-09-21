@@ -67,14 +67,16 @@ erDiagram
 ## データ取扱い
 
 - 飼い主名・連絡先はFirebase受付レコードに必要な場合だけ保存し、Worker/OrcaRouterの入力、ログ、分析結果には含めない。
-- AI分析の入力写真・動画は処理時だけ一時利用し、解析後に永続保存しない。R2へ原本を残さない。音声ファイルと動画音声は扱わない。
+- AI分析の入力写真は処理時だけ一時利用する。動画はブラウザで最大2枚のJPEGフレームへ変換し、元動画と動画内音声をWorkerへ送らない。Firestoreにはファイル名・種類・サイズのメタデータだけを保存し、バイナリ、data URL、R2オブジェクトは残さない。
 - 分析結果と性格パラメータはFirebaseへ保存する。エラー時はAI成功結果を捏造せず、状態とエラーコードを残す。
 - PairResultは全n(n-1)/2ペア分を用意してから部屋最適化へ渡す。
 - MatchingSnapshotは提案/確定を区別し、確定者と時刻を記録する。
 
 ## 現状実装との差
 
-現在のコードには `demoIntakes`, `demoPets`, `demoMatchingSnapshots`, `demoObservations` 用RepositoryとRulesがあり、AppはAI解析後の分析結果を含む受付をcreateし、プロフィールとマッチングを保存する。Firestore受付はcreate-onlyだが、AI処理が先に完了する保存順で構成される。Firebase実配備/read-backは未確認。OwnerFormからWorker分析へのコード接続は存在する一方、実Worker/OrcaRouter応答は未確認。現Workerの `/api/media` は永続保存を無効化し、解析用data URLを直接渡す。
+現在のコードには `demoIntakes`, `demoPets`, `demoMatchingSnapshots`, `demoObservations` 用RepositoryとRulesがあり、AppはAI解析後の分析結果を含む受付をcreateし、プロフィールとマッチングを保存する。Firestore受付はcreate-onlyで、AI処理が先に完了する保存順で構成される。Firebase有効時のOwnerIntakeはlocalStorageへミラーしない。Firebase Hosting / Rules実配備とread-backは未確認である。
+
+OwnerFormからWorker分析へのコード接続があり、配備済みWorkerとOrcaRouterの実構造化応答を確認済みである。Worker payloadは性格・遊び方・注意事項と画像だけを許可し、写真または動画由来JPEGフレームを一時data URLとして扱う。`/api/media` は410、raw動画・音声は415で拒否し、永続メディア領域を持たない。
 
 現在コードとRulesの実装概略：
 
@@ -85,4 +87,4 @@ demoMatchingSnapshots/{snapshotId} # 提案/確定
 demoObservations/{observationId}   # サンプル観測
 ~~~
 
-これらはコードに定義されているコレクション名であり、実Firestore上に作成・保存済みであることを示さない。
+これらはコードに定義されているコレクション名であり、実Firestore上に作成・保存済みであることを示さない。現Rulesは認証を省いたハッカソン限定の公開書込みを許すため、第三者による無料枠消費リスクがあり、本番用のアクセス制御ではない。

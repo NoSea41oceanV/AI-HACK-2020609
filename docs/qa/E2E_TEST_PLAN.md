@@ -4,6 +4,8 @@
 
 配備済みの本番相当デモで、サンプル入力が `UI → Cloudflare Worker → OrcaRouter実応答 → Firestore構造化保存 → 全ペア計算 → 部屋割り → 確定` まで一貫して反映されることを、画面・Network・Firestoreの証跡で確認する。モック応答、AI失敗時のローカル推定、偽の成功表示は合格証拠にしない。
 
+2026-09-22時点では、Cloudflare Worker `pet-hotel-agent-api` のWorkers Free配備、health、media storage無効、OrcaRouter実構造化分析を確認済みである。旧`prompt`は400、raw動画・音声は415で拒否される。FirebaseはProject / Web App / Spark / `asia-northeast1` まで設定済みだが、CLI本人認証、Hosting / Rules配備、Firestore read-backは未確認であるため、全体E2Eは未完了である。
+
 同時に次を満たすことを確認する。
 
 - 飼い主名、連絡先、住所、音声をWorker・OrcaRouterへ送らない。
@@ -21,7 +23,7 @@
 - `QA_APP_URL`: 配備済みアプリのHTTPS URL
 - `QA_WORKER_URL`: 配備済みWorkerのHTTPS URL（キーやquery tokenを含めない）
 - 検証専用の架空データ。実在人物の氏名・連絡先・住所・医療情報は禁止
-- 任意の写真・動画fixtureは、権利処理済みかつ人物・音声・位置情報を含まない検証専用品
+- 任意の写真・動画fixtureは、権利処理済みかつ人物・位置情報を含まない検証専用品。動画はOwner UIでJPEGフレームへ変換し、元動画・音声を送らない
 
 実サービスへの配備、プラン変更、課金設定、Secret登録はこの手順では行わない。実行前に担当者が配備状態と外部送信承認を確認する。
 
@@ -45,19 +47,18 @@ node e2e/live-pipeline.mjs
 
 環境変数が不足する場合は非破壊でスキップし、終了コード2を返す。ローカル配備を試す場合だけ `QA_ALLOW_HTTP_LOCALHOST=true` を指定できる。
 
-画像・動画を送る場合は、外部送信の明示承認後にfixtureを明示し、さらに送信フラグを設定する。fixture指定だけでは送信しない。
+CLI probeで画像を送る場合は、外部送信の明示承認後にfixtureを明示し、さらに送信フラグを設定する。fixture指定だけでは送信しない。`e2e/live-pipeline.mjs` はraw動画を受け付けないため、動画入力はOwner UIから別途確認する。
 
 ```powershell
 $env:QA_PHOTO_FIXTURE = "C:\qa-fixtures\dog-no-person-no-exif.jpg"
-$env:QA_VIDEO_FIXTURE = "C:\qa-fixtures\dog-silent-short.mp4"
 $env:QA_SEND_MEDIA = "true"
 node e2e/live-pipeline.mjs
 ```
 
 ## 実E2E手順と残す証跡
 
-1. ブラウザのNetworkログを保存開始し、飼い主フォームへ架空の飼い主情報と非PIIの行動文を入力する。画像・動画は承認済みfixtureだけを選ぶ。音声トラックを含む動画は使用しない。
-2. 送信時のWorker request bodyを確認し、`prompt` と承認済みmedia以外に飼い主名、連絡先、住所、音声がないことを記録する。`Authorization` やOrcaRouterキーがブラウザ側にないことも確認する。
+1. ブラウザのNetworkログを保存開始し、飼い主フォームへ架空の飼い主情報と非PIIの行動文を入力する。画像・動画は承認済みfixtureだけを選ぶ。
+2. 送信時のWorker request bodyを確認し、`profile` が性格・遊び方・注意事項の3項目だけであること、`media` が画像だけであることを記録する。動画選択時も最大2枚のJPEGフレームだけで、raw動画、飼い主名、連絡先、住所、音声がないことを確認する。`Authorization` やOrcaRouterキーがブラウザ側にないことも確認する。
 3. Workerの実応答で `ok=true`、`model`、`analysis`、`matchingProfile`、`requestId` を確認する。`e2e/live-pipeline.mjs` の構造検証も成功させる。応答本文は個人情報や秘密値を含まない範囲だけ保存する。
 4. Firebaseコンソールで新規 `demoIntakes` を確認し、同じ `requestId` またはテスト用相関ID、AI分析、matching profile、`status=ready` が保存されていることを記録する。管理画面スクリーンショットにはプロジェクトIDやPIIを写さない。
 5. スタッフ画面で対象ペットが追加され、ペット数 `n` に対してペア結果が `n(n-1)/2` 件あることを確認する。同室禁止を含む全ペアの記録と提案snapshot IDを保存する。
@@ -85,7 +86,7 @@ Rulesの静的確認だけでは十分でない。SDKまたはRules unit testing
 - Firebase BillingがSparkであること、配備対象が `firestore:rules,hosting` だけであることをコンソールと設定で確認する。
 - Cloudflare WorkerのusageがWorkers Free制限内であることを確認する。実配備設定にR2 binding、R2 bucket、KV、D1、Queues等がこのデモWorkerにないことを確認する。`wrangler.toml.example` は参考設定として警告対象だが、実配備の `wrangler.toml` にR2 bindingがあれば不合格とする。
 - DevTools Networkでブラウザからの送信先を列挙し、Hosting、Firestore、対象Worker以外がないことを確認する。OrcaRouterへの直接通信は不合格。
-- Workerログはstatus、request ID、イベント名だけで、prompt、media、飼い主情報、Authorization値がないことを確認する。
+- Workerログはstatus、request ID、イベント名だけで、profile本文、media、飼い主情報、Authorization値がないことを確認する。
 - `node scripts/qa-preflight.mjs` のsecret scanを通し、追加で配備成果物を検索する。値を画面・報告書へコピーしない。
 
 ## Visual QA
@@ -106,8 +107,10 @@ Rulesの静的確認だけでは十分でない。SDKまたはRules unit testing
 - UIがWorkerを呼ばない、またはAI失敗後にローカル変換で登録を続ける。
 - AI分析またはmatching profileがFirestoreに保存されない。
 - 全ペア結果とAI入力値を対応付けられない、確定snapshotが永続化されない。
-- Firebase / Workerの配備URL、ログイン、OrcaRouter Secret登録済み環境、外部送信承認がない。
+- Firebaseの配備URLまたはCLIログイン、OrcaRouter Secret登録済みWorker、外部送信承認のいずれかがない。
 - Rules否定テスト環境がない。
 - R2 bindingが残る、またはFirebase Functions / Storageを使用する。
 
 ブロッカー時もpreflight、構造probe、秘密情報監査、Visual QA可能範囲は実施し、未実施項目と理由を分けて記録する。
+
+現行の公開Firestore Rulesは認証を省いたハッカソン限定構成である。匿名第三者による書込みと無料枠消費のリスクを記録し、本番相当の認証・テナント分離があるとは評価しない。
