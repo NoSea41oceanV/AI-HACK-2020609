@@ -2,11 +2,9 @@ const DEFAULT_BASE_URL = "https://api.orcarouter.ai/v1";
 const DEFAULT_MODELS = ["google/gemini-2.5-flash"];
 const DEFAULT_ORIGINS = ["http://localhost:5173"];
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
 const MAX_BODY_BYTES = 28 * 1024 * 1024;
 const MAX_UPSTREAM_BYTES = 1024 * 1024;
 const ALLOWED_IMAGES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const ALLOWED_VIDEOS = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 const ALLOWED_PLAY_STYLES = new Set(["chase", "wrestle", "tug", "fetch", "gentle", "solo"]);
 const REQUEST_KEYS = new Set(["model", "prompt", "profile", "media"]);
 const PROFILE_KEYS = new Set(["personality", "playStyle", "precautions"]);
@@ -27,8 +25,7 @@ export interface Env {
 }
 
 interface ExecutionContextLike { waitUntil(promise: Promise<unknown>): void }
-type MediaKind = "image" | "video";
-interface MediaInput { type?: MediaKind; url?: string; dataUrl?: string }
+interface MediaInput { type?: string; url?: string; dataUrl?: string }
 interface PetProfile { personality?: string; playStyle?: string; precautions?: string }
 interface AnalyzeBody { model?: string; prompt?: string; profile?: PetProfile; media?: MediaInput | MediaInput[] }
 
@@ -116,21 +113,18 @@ function ascii(bytes: Uint8Array, start: number, end: number): string {
   return String.fromCharCode(...bytes.slice(start, end));
 }
 
-function validateMediaBytes(bytes: Uint8Array, contentType: string): MediaKind {
+function validateImageBytes(bytes: Uint8Array, contentType: string): void {
   if (contentType.startsWith("audio/")) throw new HttpError(415, "audio_not_supported", "このシステムでは音声を受け付けません。");
-  const kind = ALLOWED_IMAGES.has(contentType) ? "image" : ALLOWED_VIDEOS.has(contentType) ? "video" : null;
-  if (!kind) throw new HttpError(415, "unsupported_media_type", "対応していないメディア形式です。");
+  if (contentType.startsWith("video/")) throw new HttpError(415, "video_not_supported", "動画はブラウザ内で画像フレームへ変換してから送信してください。");
+  if (!ALLOWED_IMAGES.has(contentType)) throw new HttpError(415, "unsupported_media_type", "対応していない画像形式です。");
   const valid =
     (contentType === "image/jpeg" && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) ||
     (contentType === "image/png" && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) ||
-    (contentType === "image/webp" && ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 12) === "WEBP") ||
-    ((contentType === "video/mp4" || contentType === "video/quicktime") && ascii(bytes, 4, 8) === "ftyp") ||
-    (contentType === "video/webm" && bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3);
+    (contentType === "image/webp" && ascii(bytes, 0, 4) === "RIFF" && ascii(bytes, 8, 12) === "WEBP");
   if (!valid) throw new HttpError(415, "media_signature_mismatch", "Content-Typeとファイル内容が一致しません。");
-  if (bytes.byteLength > (kind === "image" ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES)) {
-    throw new HttpError(413, "media_too_large", `${kind === "image" ? "画像" : "動画"}の入力上限を超えています。`);
+  if (bytes.byteLength > MAX_IMAGE_BYTES) {
+    throw new HttpError(413, "media_too_large", "画像の入力上限を超えています。");
   }
-  return kind;
 }
 
 function parseDataUrl(value: string): { bytes: Uint8Array; contentType: string } {
@@ -166,7 +160,8 @@ function mediaContent(input: unknown): Record<string, unknown> {
   const media = input as Record<string, unknown>;
   assertKeys(media, MEDIA_KEYS);
   if (media.type === "audio") throw new HttpError(415, "audio_not_supported", "このシステムでは音声を受け付けません。");
-  if (media.type !== "image" && media.type !== "video") throw new HttpError(400, "invalid_media_type", "画像か動画を指定してください。");
+  if (media.type === "video") throw new HttpError(415, "video_not_supported", "動画はブラウザ内で画像フレームへ変換してから送信してください。");
+  if (media.type !== "image") throw new HttpError(400, "invalid_media_type", "画像を指定してください。");
   if ([media.url, media.dataUrl].filter((value) => value !== undefined).length !== 1) {
     throw new HttpError(400, "invalid_media_reference", "urlまたはdataUrlのどちらか1つを指定してください。");
   }
@@ -176,14 +171,10 @@ function mediaContent(input: unknown): Record<string, unknown> {
     value = media.url;
   } else if (typeof media.dataUrl === "string") {
     const parsed = parseDataUrl(media.dataUrl);
-    if (validateMediaBytes(parsed.bytes, parsed.contentType) !== media.type) {
-      throw new HttpError(400, "media_type_mismatch", "指定したメディア種別と内容が一致しません。");
-    }
+    validateImageBytes(parsed.bytes, parsed.contentType);
     value = media.dataUrl;
   } else throw new HttpError(400, "invalid_media_reference", "urlまたはdataUrlを文字列で指定してください。");
-  return media.type === "image"
-    ? { type: "image_url", image_url: { url: value, detail: "low" } }
-    : { type: "video_url", video_url: { url: value } };
+  return { type: "image_url", image_url: { url: value, detail: "low" } };
 }
 
 function profileText(body: AnalyzeBody): string {
@@ -217,7 +208,7 @@ function profileText(body: AnalyzeBody): string {
 function systemPrompt(): string {
   return [
     "あなたはペットホテルの相性マッチングに使う性格傾向の構造化補助AIです。",
-    "入力はペットの性格・遊び方・注意事項と任意の写真・短い動画だけです。飼い主の特定や個人情報の推測をせず、音声を評価しないでください。",
+    "入力はペットの性格・遊び方・注意事項と任意の写真または動画から抽出済みの静止画像だけです。飼い主の特定や個人情報の推測をせず、音声を評価しないでください。",
     "医療診断や性格の断定はせず、根拠が弱い場合はconfidenceを下げ、riskFlagsへ不確実性を明記してください。",
     "JSONのみを返し、次のキーを必ず含めてください:",
     'summary:string, observations:string[], personalityTraits:{label:string,evidence:string,confidence:number}[], compatibilitySignals:string[], riskFlags:string[], confidence:number, matchingProfile:{energyLevel:number,sociability:number,anxietyLevel:number,assertiveness:number,resourceGuarding:number,playStyles:string[]}',
@@ -264,7 +255,6 @@ async function analyze(request: Request, env: Env, origin: string | null, fetche
   const media = Array.isArray(body.media) ? body.media : body.media ? [body.media] : [];
   if (media.length > 3) throw new HttpError(400, "invalid_media_count", "メディアは0〜3件指定してください。");
   const content = media.map(mediaContent);
-  if (content.filter((item) => item.type === "video_url").length > 1) throw new HttpError(400, "too_many_videos", "動画は1件までです。");
 
   const baseUrl = (env.ORCA_ROUTER_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/$/, "");
   const upstream = await callUpstream(`${baseUrl}/chat/completions`, {

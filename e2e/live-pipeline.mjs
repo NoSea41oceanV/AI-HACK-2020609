@@ -61,11 +61,11 @@ function validateAnalysisResponse(payload) {
 
 const mediaTypes = new Map([
   [".jpg", "image/jpeg"], [".jpeg", "image/jpeg"], [".png", "image/png"], [".webp", "image/webp"],
-  [".mp4", "video/mp4"], [".webm", "video/webm"], [".mov", "video/quicktime"],
 ]);
 
 async function fixtureMedia() {
-  const fixtures = [process.env.QA_PHOTO_FIXTURE, process.env.QA_VIDEO_FIXTURE].filter(Boolean);
+  assert(!process.env.QA_VIDEO_FIXTURE, "QA_VIDEO_FIXTUREは送信できません。Owner UIと同様にブラウザ内で抽出したJPEGフレームだけを使用してください");
+  const fixtures = [process.env.QA_PHOTO_FIXTURE].filter(Boolean);
   if (!fixtures.length) return [];
   if (process.env.QA_SEND_MEDIA !== "true") {
     throw new Error("fixtureが指定されていますが外部送信は停止しました。送信を明示する場合だけ QA_SEND_MEDIA=true を設定してください");
@@ -76,15 +76,14 @@ async function fixtureMedia() {
     const contentType = mediaTypes.get(extname(path).toLowerCase());
     assert(contentType, `未対応fixture形式: ${extname(path)}`);
     const bytes = await readFile(path);
-    const max = contentType.startsWith("image/") ? 5 * 1024 * 1024 : 20 * 1024 * 1024;
+    const max = 5 * 1024 * 1024;
     assert(bytes.length <= max, `fixtureが上限超過: ${contentType}`);
     media.push({
-      type: contentType.startsWith("image/") ? "image" : "video",
+      type: "image",
       dataUrl: `data:${contentType};base64,${bytes.toString("base64")}`,
     });
   }
-  assert(media.filter((item) => item.type === "video").length <= 1, "動画fixtureは1件まで");
-  assert(media.length <= 3, "fixtureは合計3件まで");
+  assert(media.length <= 1, "画像fixtureは1件まで");
   return media;
 }
 

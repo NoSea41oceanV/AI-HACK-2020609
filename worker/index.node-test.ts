@@ -147,6 +147,29 @@ test("rejects audio and legacy mediaId references", async () => {
   assert.equal(((await mediaId.json()) as any).error.code, "unknown_field");
 });
 
+test("rejects raw video data URLs and URLs before calling OrcaRouter", async () => {
+  let calls = 0;
+  const fakeFetch: typeof fetch = async () => {
+    calls += 1;
+    return successfulFetch("https://unused");
+  };
+
+  const rawVideoData = await handleRequest(
+    analyzeRequest({ prompt: "穏やか", media: { type: "video", dataUrl: "data:video/mp4;base64,AAAAAGZ0eXA=" } }),
+    { ORCAROUTER_API_KEY: "test-secret" }, context, fakeFetch,
+  );
+  assert.equal(rawVideoData.status, 415);
+  assert.equal(((await rawVideoData.json()) as any).error.code, "video_not_supported");
+
+  const rawVideoUrl = await handleRequest(
+    analyzeRequest({ prompt: "穏やか", media: { type: "video", url: "https://cdn.example/pet.mp4" } }),
+    { ORCAROUTER_API_KEY: "test-secret" }, context, fakeFetch,
+  );
+  assert.equal(rawVideoUrl.status, 415);
+  assert.equal(((await rawVideoUrl.json()) as any).error.code, "video_not_supported");
+  assert.equal(calls, 0);
+});
+
 test("rejects forged media content and private URLs", async () => {
   const forged = await handleRequest(
     analyzeRequest({ prompt: "穏やか", media: { type: "image", dataUrl: "data:image/jpeg;base64,SGVsbG8=" } }),

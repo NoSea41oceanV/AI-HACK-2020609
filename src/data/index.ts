@@ -5,7 +5,7 @@ import { FirestorePetRepository } from "./firestorePetRepository";
 import { LocalIntakeRepository } from "./localIntakeRepository";
 import { LocalOperationRepository } from "./localOperationRepository";
 import { LocalPetRepository } from "./localPetRepository";
-import type { IntakeRepository, OwnerIntake } from "./intakeRepository";
+import type { IntakeRepository } from "./intakeRepository";
 
 export * from "./demoData";
 export * from "./firestoreIntakeRepository";
@@ -24,20 +24,8 @@ export const createPetRepository = () => {
 };
 
 export const createIntakeRepository = (): IntakeRepository => {
-  const local = new LocalIntakeRepository();
   const db = getFirebaseDb();
-  if (!db) return local;
-  const remote = new FirestoreIntakeRepository(db);
-  return {
-    kind: "mirror",
-    async save(intake: OwnerIntake) {
-      if (await local.get(intake.id)) throw new Error("同じ受付IDは再送信できません。新しいIDを使用してください。");
-      await local.save(intake);
-      await remote.save(intake);
-    },
-    get: (id: string) => local.get(id),
-    listRecent: (limitCount?: number) => local.listRecent(limitCount),
-  };
+  return db ? new FirestoreIntakeRepository(db) : new LocalIntakeRepository();
 };
 
 export const createOperationRepository = () => {

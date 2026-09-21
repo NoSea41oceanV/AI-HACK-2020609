@@ -1,6 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Firestore } from "firebase/firestore";
+import { createIntakeRepository } from "./index";
 import { LocalIntakeRepository } from "./localIntakeRepository";
 import { isOwnerIntake, type OwnerIntake } from "./intakeRepository";
+
+const { getFirebaseDbMock } = vi.hoisted(() => ({ getFirebaseDbMock: vi.fn() }));
+
+vi.mock("../lib/firebase", () => ({ getFirebaseDb: getFirebaseDbMock }));
 
 const intake = (id: string, submittedAt = "2026-09-22T00:00:00.000Z"): OwnerIntake => ({
   id,
@@ -28,6 +34,20 @@ const memoryStorage = () => {
     setItem: (key: string, value: string) => { values.set(key, value); },
   };
 };
+
+describe("createIntakeRepository", () => {
+  beforeEach(() => getFirebaseDbMock.mockReset());
+
+  it("uses Firestore directly when Firebase is configured", () => {
+    getFirebaseDbMock.mockReturnValue({} as Firestore);
+    expect(createIntakeRepository().kind).toBe("firestore");
+  });
+
+  it("keeps the local repository only for Firebase-disabled development", () => {
+    getFirebaseDbMock.mockReturnValue(null);
+    expect(createIntakeRepository().kind).toBe("local");
+  });
+});
 
 describe("LocalIntakeRepository", () => {
   it("saves, gets, and replaces one intake", async () => {
