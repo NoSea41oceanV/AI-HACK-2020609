@@ -1,52 +1,58 @@
-# AI HACK 2020609
+# PAWPAIR
 
-このフォルダー内の作業内容をGitで履歴管理するための準備です。
-製品の仕様、言語、フレームワーク、依存関係、ビルド・実行・テスト方法は未決定です。
-技術構成が決まった時点で、実際の手順と必要な除外ルールを追記します。
+ペットホテル向けの相性評価・部屋割り支援デモです。サンプルなのは入力データだけです。フォーム保存、AI解析、全ペア採点、部屋割りは実サービスを使う本物の処理として構成します。
 
-## 管理するファイル
+## 目標と現在の状態
 
-初回コミットの候補は `README.md` と `.gitignore` の2ファイルです。
-今後のソースコード、共有設定、文書は内容を確認して追加します。
-既存ファイルやブランチが追加されていた場合は保持し、コミット対象はアプリで個別に確認します。
+目標の流れは、飼い主フォーム → Firebase Sparkへの実保存 → Cloudflare Workers Freeへの実リクエスト → OrcaRouterによる文章・写真・動画の実解析 → 性格パラメータと分析結果のFirebase保存 → 全ペア実採点 → 部屋最適化です。
 
-## 機密情報・生成物の除外方針
+この流れは**まだ実配備・実E2Eで確認されていません**。コードにある機能とサービス上の実稼働を区別してください。現在、OwnerFormからWorkerを呼ぶ接続はなく、FirebaseとOrcaRouterも実設定・実接続を確認していません。進捗は [TASKS.md](TASKS.md) を参照してください。
 
-以下は `.gitignore` で除外する保存場所・名前の規約です。特定の技術構成の採用を意味しません。
+## 固定要件
 
-| 対象 | 除外するパス・パターン |
-| --- | --- |
-| 実際の環境変数・ローカル設定 | 各階層の `.env`、`.env.*` |
-| 秘密情報・認証情報の保存先 | 各階層の `secrets/`、`credentials/` |
-| 秘密鍵・証明書バンドル | 各階層の `*.key`、`*.p12`、`*.pfx` |
-| 再生成できる成果物 | ルート直下の `build/`、`dist/`、`coverage/` |
-| キャッシュ・一時ファイル | ルート直下の `.cache/`、`tmp/` |
-| 実行ログ | 各階層の `*.log` |
-| OSが作成する補助ファイル | 各階層の `.DS_Store`、`Thumbs.db`、`Desktop.ini` |
+- FirebaseはSparkプランのみ。Cloud Functions for FirebaseとCloud Storage for Firebaseは使用しません。
+- AIプロキシはCloudflare Workers Freeのみを使用します。
+- 飼い主名、連絡先、音声をOrcaRouterへ送信しません。AIへ渡すのは分析に必要な性格文章と写真・動画だけです。
+- 写真・動画はAI解析のための一時入力とし、解析後に永続保存しません。分析結果と性格パラメータはFirebaseへ保存します。
+- 音声の入力・抽出・解析・保存を行いません。
+- AI/Workerの失敗を成功扱いせず、固定結果やローカルAI風判定に置き換えません。失敗は画面に明示します。
+- 全ペアの採点を完了してから、部屋数・定員・安全制約を考慮した部屋割り最適化を行います。
+- 単一利用者、固定URLを前提とします。ログイン、複数施設分離、有料プランは対象外です。
 
-`.env.example` は共有用の例として除外しません。作成する場合はダミー値だけを記載します。
-上記パターン以外に書かれた秘密情報は自動では除外されないため、追加するファイルの内容を確認します。
-すでに追跡されているファイルには `.gitignore` が効かないため、既存の管理対象も確認します。
-技術固有の依存物や生成物は、構成が決まり次第、実際のパスを確認して除外します。
+## ローカル開発
 
-## アプリでの初期化・初回コミット候補の確認
+Node.js 20.19以上（推奨22.12以上）とnpmを使用します。
 
-1. アプリで対象フォルダー `D:\work\AI HACK 2020609` を選び、レビュー済みGit操作で初期化します。すでにリポジトリであれば再初期化しません。
-2. 対象フォルダー内で、以下の読み取り専用コマンドを実行します。
+```powershell
+npm install
+npm run dev
+```
 
-   ```powershell
-   git rev-parse --show-toplevel
-   git status --short --untracked-files=all
-   git check-ignore -v -- .env .env.local secrets/probe.txt credentials/probe.json private.key bundle.p12 bundle.pfx build/probe.txt dist/probe.txt coverage/probe.txt .cache/probe.txt tmp/probe.txt run.log .DS_Store Thumbs.db Desktop.ini
-   git check-ignore -v -- README.md .gitignore .env.example
-   ```
+- スタッフ画面: `/`
+- 飼い主フォーム: `/?view=owner`
 
-3. ルートが `D:/work/AI HACK 2020609`（区切り文字の違いは許容）と一致することを確認します。一致しなければコミットに進みません。
-4. 新たなファイルが追加されていなければ、statusの候補が `?? .gitignore` と `?? README.md` の2件だけであることを確認します。
-5. 最初のcheck-ignoreで全パスの除外ルールが表示されることを確認します。検証用パスは実在する必要がありません。最後のcheck-ignoreは出力なし・終了コード1が期待値です。共有する3ファイルが除外されないことを示します。
-6. アプリで2ファイルの内容と初回コミット候補を確認します。初回コミットもアプリのレビュー済み操作で行います。
+現在はFirebase設定がない場合にlocalStorageリポジトリが選ばれます。このローカル動作は開発用であり、本番フローの完了やAI処理の成功を示しません。AI接続に失敗した場合は成功データを作らずエラーにします。
 
-初回コミットメッセージ案: `docs: add repository overview and ignore policy`
+## 接続設定・配備
 
-この手順は実行済みの記録ではありません。初期化・コミットのGit変更コマンドは実行せず、アプリ上で確認します。
-リモート作成、push、PR、認証設定、課金、権限変更はこの作業の対象外です。
+Firebase Web configとProject ID、Cloudflareログイン、再発行済みOrcaRouter Secretが未確認です。以前チャットに貼られたキーは使わないでください。新しいキーはCloudflare Worker Secretにのみ登録し、ブラウザ変数、リポジトリ、Firestore、ログには置きません。
+
+実設定値を作成・配備する前に、タスク台帳の保留事項を解消してください。Firebase SparkとWorkers Freeを越える設定へ移行しません。配備手順は [DEPLOYMENT.md](docs/DEPLOYMENT.md) が担当文書です。
+
+## 検証
+
+```powershell
+npm run typecheck
+npm test
+npm run build
+```
+
+Workerのテストは `cd worker; npm test` で実行します。これらの自動テストだけではFirebase、Worker、OrcaRouterへの実接続・配備を証明しません。実E2Eは外部保留事項を解消して別途実行し、実施結果を記録してください。
+
+## 設計資料
+
+- [プロダクト設計書](docs/ペットホテル自律AIエージェント_設計書_v4.md)
+- [Firebase版 実装設計書](docs/実装設計書_Firebase版.md)
+- [ER図](docs/ER図.md)
+- [アーキテクチャ図](docs/アーキテクチャ図.md)
+- [実装タスク](TASKS.md)
