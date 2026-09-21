@@ -143,4 +143,3 @@ let elapsed=0;
 const script='# PAWPAIR 発表原稿\n\n本編9枚、目安3分40秒（220秒）。補足4枚は質疑応答用。実演操作を含めない静止画ピッチ。\n\n読み上げ速度は個人差があるため、1回リハーサルして4分以内に調整する。数値は2026年9月22日時点で調査。価格・販売・効果・費用は提案仮説。\n\n'+notes.filter(n=>n.num<=9).map(n=>{let a=elapsed;elapsed+=n.seconds;return `## ${n.num}. ${n.title}（${a}〜${elapsed}秒）\n\n${n.script}\n`;}).join('\n')+'\n## 出典と実装の範囲\n\n'+Object.values(source).map(v=>'- '+v).join('\n')+'\n\n各スライドのノートに根拠と計算前提を記載。UI画面は6頭サンプル、実サービスE2E確認は架空2頭。認証・施設分離・課金・販売計画は今後。資料中の過去のテスト結果は既存記録の引用で、本作業での再実行ではない。\n';
 await fs.writeFile(path.join(root,'docs/presentation/speaker-notes.md'),script);
 await fs.writeFile(path.join(out,'発表原稿.md'),script);
-
