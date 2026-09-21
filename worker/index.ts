@@ -19,7 +19,7 @@ const PRIVATE_TEXT = [
 ];
 
 export interface Env {
-  ORCA_ROUTER_API_KEY?: string;
+  ORCAROUTER_API_KEY?: string;
   ORCA_ROUTER_BASE_URL?: string;
   ORCA_ALLOWED_MODELS?: string;
   ORCA_ROUTER_TIMEOUT_MS?: string;
@@ -96,7 +96,7 @@ function enforceRateLimit(request: Request): void {
     return;
   }
   current.count += 1;
-  if (current.count > 10) throw new HttpError(429, "rate_limited", "1分あたりのデモ上限を超えました。");
+  if (current.count > 10) throw new HttpError(429, "rate_limited", "1分あたりの利用上限を超えました。");
 }
 
 function assertKeys(value: Record<string, unknown>, allowed: Set<string>): void {
@@ -117,7 +117,7 @@ function ascii(bytes: Uint8Array, start: number, end: number): string {
 }
 
 function validateMediaBytes(bytes: Uint8Array, contentType: string): MediaKind {
-  if (contentType.startsWith("audio/")) throw new HttpError(415, "audio_not_supported", "このデモでは音声を受け付けません。");
+  if (contentType.startsWith("audio/")) throw new HttpError(415, "audio_not_supported", "このシステムでは音声を受け付けません。");
   const kind = ALLOWED_IMAGES.has(contentType) ? "image" : ALLOWED_VIDEOS.has(contentType) ? "video" : null;
   if (!kind) throw new HttpError(415, "unsupported_media_type", "対応していないメディア形式です。");
   const valid =
@@ -128,7 +128,7 @@ function validateMediaBytes(bytes: Uint8Array, contentType: string): MediaKind {
     (contentType === "video/webm" && bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3);
   if (!valid) throw new HttpError(415, "media_signature_mismatch", "Content-Typeとファイル内容が一致しません。");
   if (bytes.byteLength > (kind === "image" ? MAX_IMAGE_BYTES : MAX_VIDEO_BYTES)) {
-    throw new HttpError(413, "media_too_large", `${kind === "image" ? "画像" : "動画"}のデモ上限を超えています。`);
+    throw new HttpError(413, "media_too_large", `${kind === "image" ? "画像" : "動画"}の入力上限を超えています。`);
   }
   return kind;
 }
@@ -165,7 +165,7 @@ function mediaContent(input: unknown): Record<string, unknown> {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new HttpError(400, "invalid_media", "メディア指定が不正です。");
   const media = input as Record<string, unknown>;
   assertKeys(media, MEDIA_KEYS);
-  if (media.type === "audio") throw new HttpError(415, "audio_not_supported", "このデモでは音声を受け付けません。");
+  if (media.type === "audio") throw new HttpError(415, "audio_not_supported", "このシステムでは音声を受け付けません。");
   if (media.type !== "image" && media.type !== "video") throw new HttpError(400, "invalid_media_type", "画像か動画を指定してください。");
   if ([media.url, media.dataUrl].filter((value) => value !== undefined).length !== 1) {
     throw new HttpError(400, "invalid_media_reference", "urlまたはdataUrlのどちらか1つを指定してください。");
@@ -241,15 +241,15 @@ async function callUpstream(url: string, init: RequestInit, env: Env, fetcher: t
 }
 
 async function analyze(request: Request, env: Env, origin: string | null, fetcher: typeof fetch, requestId: string): Promise<Response> {
-  if (!env.ORCA_ROUTER_API_KEY) throw new HttpError(503, "orcarouter_not_configured", "AI接続が設定されていません。");
+  if (!env.ORCAROUTER_API_KEY) throw new HttpError(503, "orcarouter_not_configured", "AI接続が設定されていません。");
   enforceRateLimit(request);
   const length = request.headers.get("content-length");
-  if (length && (!/^\d+$/.test(length) || Number(length) > MAX_BODY_BYTES)) throw new HttpError(413, "payload_too_large", "入力サイズがデモ上限を超えています。");
+  if (length && (!/^\d+$/.test(length) || Number(length) > MAX_BODY_BYTES)) throw new HttpError(413, "payload_too_large", "入力サイズが上限を超えています。");
   if (request.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase() !== "application/json") throw new HttpError(415, "json_required", "application/jsonで送信してください。");
   let body: AnalyzeBody;
   try {
     const raw = await request.text();
-    if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) throw new HttpError(413, "payload_too_large", "入力サイズがデモ上限を超えています。");
+    if (new TextEncoder().encode(raw).byteLength > MAX_BODY_BYTES) throw new HttpError(413, "payload_too_large", "入力サイズが上限を超えています。");
     body = JSON.parse(raw) as AnalyzeBody;
     if (!body || typeof body !== "object" || Array.isArray(body)) throw new HttpError(400, "invalid_json", "JSONオブジェクトを送信してください。");
   } catch (error) {
@@ -269,7 +269,7 @@ async function analyze(request: Request, env: Env, origin: string | null, fetche
   const baseUrl = (env.ORCA_ROUTER_BASE_URL ?? DEFAULT_BASE_URL).replace(/\/$/, "");
   const upstream = await callUpstream(`${baseUrl}/chat/completions`, {
     method: "POST",
-    headers: { authorization: `Bearer ${env.ORCA_ROUTER_API_KEY}`, "content-type": "application/json" },
+    headers: { authorization: `Bearer ${env.ORCAROUTER_API_KEY}`, "content-type": "application/json" },
     body: JSON.stringify({
       model, temperature: 0.1, response_format: { type: "json_object" },
       messages: [{ role: "system", content: systemPrompt() }, { role: "user", content: [{ type: "text", text }, ...content] }],
@@ -340,7 +340,7 @@ export async function handleRequest(request: Request, env: Env, _context: Execut
     origin = assertCors(request, env);
     if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: responseHeaders(origin) });
     const path = new URL(request.url).pathname;
-    if (request.method === "GET" && path === "/health") return json({ ok: true, service: "pawpair-media-worker", orcaRouterConfigured: Boolean(env.ORCA_ROUTER_API_KEY), mediaStorageConfigured: false }, 200, origin);
+    if (request.method === "GET" && path === "/health") return json({ ok: true, service: "pet-hotel-agent-api", orcaRouterConfigured: Boolean(env.ORCAROUTER_API_KEY), mediaStorageConfigured: false }, 200, origin);
     if (request.method === "POST" && path === "/api/analyze") return await analyze(request, env, origin, upstreamFetch, requestId);
     if (request.method === "POST" && path === "/api/media") throw new HttpError(410, "media_storage_disabled", "メディアは保存しません。/api/analyzeへdataUrlを直接送信してください。");
     throw new HttpError(404, "not_found", "エンドポイントが見つかりません。");

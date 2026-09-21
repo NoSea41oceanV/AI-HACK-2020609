@@ -110,7 +110,7 @@ try {
   const healthUrl = new URL("/health", `${workerUrl}/`);
   const workerHeaders = { origin: appUrl.origin };
   const health = await fetchJson(healthUrl, { headers: workerHeaders });
-  assert(health.ok === true && health.service === "pawpair-media-worker", "health応答構造不正");
+  assert(health.ok === true && health.service === "pet-hotel-agent-api", "health応答構造不正");
   assert(health.orcaRouterConfigured === true, "OrcaRouterがWorkerに設定されていません");
   assert(typeof health.mediaStorageConfigured === "boolean", "health.mediaStorageConfigured形式不正");
   assert(health.mediaStorageConfigured === false, "R2等のmedia storageが有効です。R2なし受入条件に違反します");

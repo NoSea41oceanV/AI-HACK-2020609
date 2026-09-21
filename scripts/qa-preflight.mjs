@@ -79,7 +79,7 @@ const secretPatterns = [
   ["Google API key", /AIza[0-9A-Za-z_-]{35}/],
   ["GitHub token", /gh(?:p|o|u|s|r)_[A-Za-z0-9]{30,}/],
   ["OpenAI-style key", /\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}/],
-  ["assigned API secret", /(?:ORCA_ROUTER_API_KEY|CLOUDFLARE_API_TOKEN|FIREBASE_PRIVATE_KEY)\s*[:=]\s*["']?(?!\s*(?:"|'|<|\$\{|process\.env|env\.|example|dummy|test|redacted|your[_-]))[A-Za-z0-9_+\/.=-]{20,}/i],
+  ["assigned API secret", /(?:ORCAROUTER_API_KEY|CLOUDFLARE_API_TOKEN|FIREBASE_PRIVATE_KEY)\s*[:=]\s*["']?(?!\s*(?:"|'|<|\$\{|process\.env|env\.|example|dummy|test|redacted|your[_-]))[A-Za-z0-9_+\/.=-]{20,}/i],
 ];
 
 console.log("\n== Secret scan ==");

@@ -22,18 +22,17 @@ service cloud.firestore {
     }
 
     function validIntakeMedia(item, expectedKind, maxBytes) {
-      return item.keys().hasOnly(['kind', 'fileName', 'contentType', 'sizeBytes', 'mediaId', 'status'])
+      return item.keys().hasOnly(['kind', 'fileName', 'contentType', 'sizeBytes', 'status'])
         && item.kind == expectedKind && item.fileName is string && item.fileName.size() > 0 && item.fileName.size() <= 120
         && item.contentType is string && item.contentType.size() <= 80
         && item.contentType.matches(expectedKind == 'image' ? '^image/[a-zA-Z0-9.+-]+$' : '^video/[a-zA-Z0-9.+-]+$')
         && item.sizeBytes is int && item.sizeBytes >= 0 && item.sizeBytes <= maxBytes
-        && item.status in ['selected', 'uploaded', 'failed']
-        && (!('mediaId' in item) || (item.mediaId is string && item.mediaId.size() <= 200));
+        && item.status in ['selected', 'uploaded', 'failed'];
     }
     function validIntakeMediaMap(media) {
       return media.keys().hasOnly(['photo', 'video'])
-        && (!('photo' in media) || validIntakeMedia(media.photo, 'image', 10 * 1024 * 1024))
-        && (!('video' in media) || validIntakeMedia(media.video, 'video', 100 * 1024 * 1024));
+        && (!('photo' in media) || validIntakeMedia(media.photo, 'image', 5 * 1024 * 1024))
+        && (!('video' in media) || validIntakeMedia(media.video, 'video', 20 * 1024 * 1024));
     }
     function validMatchingProfile(profile) {
       return profile.keys().hasOnly(['energyLevel', 'sociability', 'anxietyLevel', 'assertiveness', 'resourceGuarding', 'playStyles', 'hardBlockedPetIds'])

@@ -89,6 +89,58 @@ try {
     submittedAt: new Date().toISOString(),
   };
   await expectAllowed(setDoc(doc(db, "demoIntakes", intakeId), intake), "valid owner intake create");
+
+  const mediaIntake = (id, media) => ({ ...intake, id, media });
+  const maximumMetadata = {
+    photo: {
+      kind: "image",
+      fileName: "pet.jpg",
+      contentType: "image/jpeg",
+      sizeBytes: 5 * 1024 * 1024,
+      status: "selected",
+    },
+    video: {
+      kind: "video",
+      fileName: "pet.mp4",
+      contentType: "video/mp4",
+      sizeBytes: 20 * 1024 * 1024,
+      status: "selected",
+    },
+  };
+  const maximumMediaIntakeId = `rules-intake-max-media-${suffix}`;
+  await expectAllowed(
+    setDoc(doc(db, "demoIntakes", maximumMediaIntakeId), mediaIntake(maximumMediaIntakeId, maximumMetadata)),
+    "metadata at image and video byte limits",
+  );
+  const mediaIdIntakeId = `rules-intake-media-id-${suffix}`;
+  await expectDenied(
+    setDoc(doc(db, "demoIntakes", mediaIdIntakeId), mediaIntake(mediaIdIntakeId, {
+      photo: { ...maximumMetadata.photo, mediaId: "persisted-object" },
+    })),
+    "persisted media id metadata",
+  );
+  const dataUrlIntakeId = `rules-intake-data-url-${suffix}`;
+  await expectDenied(
+    setDoc(doc(db, "demoIntakes", dataUrlIntakeId), mediaIntake(dataUrlIntakeId, {
+      photo: { ...maximumMetadata.photo, dataUrl: "data:image/jpeg;base64,/9j/" },
+    })),
+    "raw data URL metadata",
+  );
+  const oversizedPhotoIntakeId = `rules-intake-photo-large-${suffix}`;
+  await expectDenied(
+    setDoc(doc(db, "demoIntakes", oversizedPhotoIntakeId), mediaIntake(oversizedPhotoIntakeId, {
+      photo: { ...maximumMetadata.photo, sizeBytes: (5 * 1024 * 1024) + 1 },
+    })),
+    "photo metadata above 5 MiB",
+  );
+  const oversizedVideoIntakeId = `rules-intake-video-large-${suffix}`;
+  await expectDenied(
+    setDoc(doc(db, "demoIntakes", oversizedVideoIntakeId), mediaIntake(oversizedVideoIntakeId, {
+      video: { ...maximumMetadata.video, sizeBytes: (20 * 1024 * 1024) + 1 },
+    })),
+    "video metadata above 20 MiB",
+  );
+
   await expectDenied(getDoc(doc(db, "demoIntakes", intakeId)), "owner intake read");
   await expectDenied(getDocs(query(collection(db, "demoIntakes"), limit(1))), "owner intake list");
   await expectDenied(updateDoc(doc(db, "demoIntakes", intakeId), { status: "ready" }), "owner intake update");

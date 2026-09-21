@@ -34,6 +34,16 @@ describe("Firebase Spark deployment configuration", () => {
     expect(rules).toContain("allow read, write: if false;");
   });
 
+  it("stores media metadata only and matches the client and Worker byte limits", () => {
+    const rules = read("./firestore.rules");
+
+    expect(rules).toContain("item.keys().hasOnly(['kind', 'fileName', 'contentType', 'sizeBytes', 'status'])");
+    expect(rules).not.toContain("mediaId");
+    expect(rules).not.toContain("dataUrl");
+    expect(rules).toContain("validIntakeMedia(media.photo, 'image', 5 * 1024 * 1024)");
+    expect(rules).toContain("validIntakeMedia(media.video, 'video', 20 * 1024 * 1024)");
+  });
+
   it("does not expose a server-side AI key in browser environment examples", () => {
     const example = read("./.env.example");
     expect(example).not.toMatch(/^VITE_.*ORCA.*KEY=/m);

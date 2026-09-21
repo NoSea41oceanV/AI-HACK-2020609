@@ -42,10 +42,20 @@ test("health reports that media persistence is disabled", async () => {
   assert.equal(response.status, 200);
   assert.deepEqual(await response.json(), {
     ok: true,
-    service: "pawpair-media-worker",
+    service: "pet-hotel-agent-api",
     orcaRouterConfigured: false,
     mediaStorageConfigured: false,
   });
+});
+
+test("recognizes the deployed ORCAROUTER_API_KEY binding", async () => {
+  const response = await handleRequest(
+    new Request("https://worker.test/health"),
+    { ORCAROUTER_API_KEY: "test-secret" },
+    context,
+  );
+  assert.equal(response.status, 200);
+  assert.equal(((await response.json()) as any).orcaRouterConfigured, true);
 });
 
 test("rejects an unlisted browser origin", async () => {
@@ -81,7 +91,7 @@ test("sends only approved profile fields and keeps the secret in Authorization",
       precautions: "大きな犬には慎重",
     },
     media: { type: "image", dataUrl: "data:image/jpeg;base64,/9j/2w==" },
-  }), { ORCA_ROUTER_API_KEY: "test-secret" }, context, fakeFetch);
+  }), { ORCAROUTER_API_KEY: "test-secret" }, context, fakeFetch);
 
   assert.equal(response.status, 200);
   assert.equal(new Headers(capturedInit?.headers).get("authorization"), "Bearer test-secret");
@@ -94,7 +104,7 @@ test("sends only approved profile fields and keeps the secret in Authorization",
 test("retains prompt compatibility for text-only analysis", async () => {
   const response = await handleRequest(
     analyzeRequest({ prompt: "初対面の犬には慎重ですが、慣れると追いかけっこをします。" }),
-    { ORCA_ROUTER_API_KEY: "test-secret" }, context, successfulFetch,
+    { ORCAROUTER_API_KEY: "test-secret" }, context, successfulFetch,
   );
   assert.equal(response.status, 200);
   assert.deepEqual(((await response.json()) as any).analysis.matchingProfile, validAnalysis.matchingProfile);
@@ -105,7 +115,7 @@ test("rejects owner and contact fields before calling OrcaRouter", async () => {
   const fakeFetch: typeof fetch = async () => { called = true; return successfulFetch("https://unused"); };
   const response = await handleRequest(
     analyzeRequest({ prompt: "穏やかです", ownerName: "送信禁止" }),
-    { ORCA_ROUTER_API_KEY: "test-secret" }, context, fakeFetch,
+    { ORCAROUTER_API_KEY: "test-secret" }, context, fakeFetch,
   );
   assert.equal(response.status, 400);
   assert.equal(((await response.json()) as any).error.code, "data_minimization_violation");
@@ -115,7 +125,7 @@ test("rejects owner and contact fields before calling OrcaRouter", async () => {
 test("rejects contact details embedded in compatibility prompt", async () => {
   const response = await handleRequest(
     analyzeRequest({ prompt: "穏やか。電話: 090-1234-5678" }),
-    { ORCA_ROUTER_API_KEY: "test-secret" }, context, successfulFetch,
+    { ORCAROUTER_API_KEY: "test-secret" }, context, successfulFetch,
   );
   assert.equal(response.status, 400);
   assert.equal(((await response.json()) as any).error.code, "data_minimization_violation");
@@ -124,14 +134,14 @@ test("rejects contact details embedded in compatibility prompt", async () => {
 test("rejects audio and legacy mediaId references", async () => {
   const audio = await handleRequest(
     analyzeRequest({ prompt: "穏やか", media: { type: "audio", dataUrl: "data:audio/mpeg;base64,SUQz" } }),
-    { ORCA_ROUTER_API_KEY: "test-secret" }, context, successfulFetch,
+    { ORCAROUTER_API_KEY: "test-secret" }, context, successfulFetch,
   );
   assert.equal(audio.status, 415);
   assert.equal(((await audio.json()) as any).error.code, "audio_not_supported");
 
   const mediaId = await handleRequest(
     analyzeRequest({ prompt: "穏やか", media: { type: "image", mediaId: "stored-object" } }),
-    { ORCA_ROUTER_API_KEY: "test-secret" }, context, successfulFetch,
+    { ORCAROUTER_API_KEY: "test-secret" }, context, successfulFetch,
   );
   assert.equal(mediaId.status, 400);
   assert.equal(((await mediaId.json()) as any).error.code, "unknown_field");
@@ -140,14 +150,14 @@ test("rejects audio and legacy mediaId references", async () => {
 test("rejects forged media content and private URLs", async () => {
   const forged = await handleRequest(
     analyzeRequest({ prompt: "穏やか", media: { type: "image", dataUrl: "data:image/jpeg;base64,SGVsbG8=" } }),
-    { ORCA_ROUTER_API_KEY: "test-secret" }, context, successfulFetch,
+    { ORCAROUTER_API_KEY: "test-secret" }, context, successfulFetch,
   );
   assert.equal(forged.status, 415);
   assert.equal(((await forged.json()) as any).error.code, "media_signature_mismatch");
 
   const privateUrl = await handleRequest(
     analyzeRequest({ prompt: "穏やか", media: { type: "image", url: "https://127.0.0.1/pet.jpg" } }),
-    { ORCA_ROUTER_API_KEY: "test-secret" }, context, successfulFetch,
+    { ORCAROUTER_API_KEY: "test-secret" }, context, successfulFetch,
   );
   assert.equal(privateUrl.status, 400);
   assert.equal(((await privateUrl.json()) as any).error.code, "invalid_media_url");
@@ -156,7 +166,7 @@ test("rejects forged media content and private URLs", async () => {
 test("rejects models outside the explicit allowlist", async () => {
   const response = await handleRequest(
     analyzeRequest({ model: "expensive/unknown", prompt: "穏やか" }),
-    { ORCA_ROUTER_API_KEY: "test-secret" }, context, successfulFetch,
+    { ORCAROUTER_API_KEY: "test-secret" }, context, successfulFetch,
   );
   assert.equal(response.status, 400);
   assert.equal(((await response.json()) as any).error.code, "model_not_allowed");
@@ -166,7 +176,7 @@ test("rejects invalid structured model output", async () => {
   const fakeFetch: typeof fetch = async () => Response.json({ choices: [{ message: { content: '{"summary":"missing fields"}' } }] });
   const response = await handleRequest(
     analyzeRequest({ prompt: "穏やか" }),
-    { ORCA_ROUTER_API_KEY: "test-secret" }, context, fakeFetch,
+    { ORCAROUTER_API_KEY: "test-secret" }, context, fakeFetch,
   );
   assert.equal(response.status, 502);
   assert.equal(((await response.json()) as any).error.code, "invalid_model_response");

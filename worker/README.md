@@ -45,8 +45,8 @@ Cloudflare Workers Free を想定した、OrcaRouter とブラウザの間の小
 
 ## 設定
 
-1. `wrangler.toml.example` を `wrangler.toml` としてコピーし、`name` と `CORS_ORIGINS` を環境に合わせます。
-2. API キーはファイルへ書かず、`npx wrangler secret put ORCA_ROUTER_API_KEY` でSecretとして登録します。
+1. `wrangler.toml.example` を `wrangler.toml` としてコピーします。既存Workerへ配備するため、`name = "pet-hotel-agent-api"` は変更せず、`CORS_ORIGINS` だけを環境に合わせます。
+2. API キーはファイルへ書かず、`npx wrangler secret put ORCAROUTER_API_KEY` でSecretとして登録します。
 3. R2、KV、D1などのストレージBindingは設定しません。
 
 環境変数:
