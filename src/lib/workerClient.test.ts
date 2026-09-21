@@ -71,6 +71,45 @@ describe("AIWorkerClient", () => {
     expect(bodyText).not.toContain("mediaId");
   });
 
+  it("extracts silent image frames and never sends the original video or audio-track bytes", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true, requestId: "request-video", model: "demo-model", analysis: validAnalysis, usage: null,
+    }), { status: 200 }));
+    const originalBytes = new TextEncoder().encode("MP4_VIDEO_WITH_FORBIDDEN_AUDIO_TRACK");
+    const video = new Blob([originalBytes], { type: "video/mp4" });
+    const frameExtractor = vi.fn(async (received: Blob) => {
+      expect(received).toBe(video);
+      return [
+        new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0x01])], { type: "image/jpeg" }),
+        new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0x02])], { type: "image/jpeg" }),
+      ];
+    });
+    const client = new AIWorkerClient("https://worker.example", {
+      fetchImpl: fetchMock,
+      videoFrameExtractor: frameExtractor,
+    });
+
+    await client.analyzeOwnerRegistration({
+      personality: "活発",
+      playStyle: "追いかけっこ",
+      concerns: "大きな音が苦手",
+      video,
+    });
+
+    const bodyText = String(fetchMock.mock.calls[0][1]?.body);
+    const body = JSON.parse(bodyText) as { media: Array<{ type: string; dataUrl: string }> };
+    const originalDataUrl = `data:video/mp4;base64,${btoa(String.fromCharCode(...originalBytes))}`;
+    expect(frameExtractor).toHaveBeenCalledOnce();
+    expect(body.media).toEqual([
+      { type: "image", dataUrl: "data:image/jpeg;base64,/9j/AQ==" },
+      { type: "image", dataUrl: "data:image/jpeg;base64,/9j/Ag==" },
+    ]);
+    expect(body.media.every((item) => item.type === "image")).toBe(true);
+    expect(bodyText).not.toContain("data:video/");
+    expect(bodyText).not.toContain(originalDataUrl);
+    expect(bodyText).not.toContain(btoa(String.fromCharCode(...originalBytes)));
+  });
+
   it("accepts text-only analysis and validates the strict matching profile", async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
       ok: true, requestId: "request-1", model: "demo-model", analysis: validAnalysis, usage: null,

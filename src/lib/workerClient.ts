@@ -23,7 +23,12 @@ export interface WorkerAnalyzeResult {
 export class WorkerClientError extends Error {
   constructor(message: string, readonly code: string, readonly status?: number) { super(message); }
 }
-interface WorkerClientOptions { fetchImpl?: typeof fetch; timeoutMs?: number }
+type VideoFrameExtractor = (video: Blob) => Promise<Blob[]>;
+interface WorkerClientOptions {
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+  videoFrameExtractor?: VideoFrameExtractor;
+}
 
 export const AI_MEDIA_LIMITS = {
   imageBytes: 5 * 1024 * 1024,
@@ -97,6 +102,91 @@ const toDataUrl = async (file: Blob): Promise<string> => {
   return `data:${file.type};base64,${bytesToBase64(bytes)}`;
 };
 
+const waitForVideoEvent = (video: HTMLVideoElement, successEvent: "loadedmetadata" | "loadeddata" | "seeked"): Promise<void> =>
+  new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => finish(new WorkerClientError("動画から静止画を作成できませんでした。", "video_frame_extraction_failed", 422)), 15_000);
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      video.removeEventListener(successEvent, onSuccess);
+      video.removeEventListener("error", onError);
+    };
+    const finish = (error?: WorkerClientError) => {
+      cleanup();
+      if (error) reject(error);
+      else resolve();
+    };
+    const onSuccess = () => finish();
+    const onError = () => finish(new WorkerClientError("動画を読み取れませんでした。", "video_frame_extraction_failed", 422));
+    video.addEventListener(successEvent, onSuccess, { once: true });
+    video.addEventListener("error", onError, { once: true });
+  });
+
+const canvasToJpeg = (canvas: HTMLCanvasElement): Promise<Blob> => new Promise((resolve, reject) => {
+  canvas.toBlob((blob) => {
+    if (blob) resolve(blob);
+    else reject(new WorkerClientError("動画から静止画を作成できませんでした。", "video_frame_extraction_failed", 422));
+  }, "image/jpeg", 0.82);
+});
+
+const extractSilentVideoFrames: VideoFrameExtractor = async (file) => {
+  if (typeof document === "undefined" || typeof window === "undefined" ||
+      typeof URL.createObjectURL !== "function" || typeof URL.revokeObjectURL !== "function") {
+    throw new WorkerClientError("この環境では動画から静止画を作成できません。", "video_frame_extraction_unavailable", 422);
+  }
+
+  const objectUrl = URL.createObjectURL(file);
+  const video = document.createElement("video");
+  video.preload = "auto";
+  video.muted = true;
+  video.playsInline = true;
+  video.src = objectUrl;
+
+  try {
+    const metadataReady = waitForVideoEvent(video, "loadedmetadata");
+    video.load();
+    await metadataReady;
+    if (!video.videoWidth || !video.videoHeight || !Number.isFinite(video.duration) || video.duration <= 0) {
+      throw new WorkerClientError("動画の長さまたは映像を読み取れませんでした。", "video_frame_extraction_failed", 422);
+    }
+
+    if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+      await waitForVideoEvent(video, "loadeddata");
+    }
+
+    const maximumDimension = 1_280;
+    const scale = Math.min(1, maximumDimension / Math.max(video.videoWidth, video.videoHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new WorkerClientError("動画から静止画を作成できませんでした。", "video_frame_extraction_failed", 422);
+
+    const end = Math.max(0, video.duration - Math.min(0.05, video.duration / 10));
+    const candidates = [video.duration * 0.25, video.duration * 0.75]
+      .map((time) => Math.min(end, Math.max(0, time)));
+    const timestamps = candidates.filter((time, index) => index === 0 || Math.abs(time - candidates[index - 1]) >= 0.05);
+    const frames: Blob[] = [];
+    for (const timestamp of timestamps) {
+      if (Math.abs(video.currentTime - timestamp) >= 0.001) {
+        const seeked = waitForVideoEvent(video, "seeked");
+        video.currentTime = timestamp;
+        await seeked;
+      }
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const frame = await canvasToJpeg(canvas);
+      assertMediaFile("image", frame);
+      frames.push(frame);
+    }
+    if (!frames.length) throw new WorkerClientError("動画から静止画を作成できませんでした。", "video_frame_extraction_failed", 422);
+    return frames.slice(0, 2);
+  } finally {
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+    URL.revokeObjectURL(objectUrl);
+  }
+};
+
 const ownerAnalysisPrompt = (input: Pick<OwnerAnalysisInput, "personality" | "playStyle" | "concerns">): string => [
   "以下は飼い主が入力したペットの情報です。記載内容と添付メディアだけを根拠に分析してください。",
   `性格: ${input.personality.trim()}`,
@@ -155,6 +245,7 @@ export class AIWorkerClient {
   readonly state: { kind: "enabled"; baseUrl: string } | { kind: "disabled"; reason: string };
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
+  private readonly videoFrameExtractor: VideoFrameExtractor;
 
   constructor(baseUrl?: string, options: WorkerClientOptions = {}) {
     const value = baseUrl?.trim();
@@ -167,6 +258,7 @@ export class AIWorkerClient {
     }
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.timeoutMs = Math.max(100, options.timeoutMs ?? 60_000);
+    this.videoFrameExtractor = options.videoFrameExtractor ?? extractSilentVideoFrames;
   }
 
   private url(path: string): string {
@@ -227,11 +319,13 @@ export class AIWorkerClient {
       throw new WorkerClientError("性格と好きな遊び・遊び方を入力してください。", "owner_profile_required", 400);
     }
     validateOwnerAnalysisMedia(input);
-    const entries = ([
-      input.photo ? { type: "image" as const, file: input.photo } : null,
-      input.video ? { type: "video" as const, file: input.video } : null,
-    ]).filter((entry): entry is { type: "image" | "video"; file: Blob } => entry !== null);
-    const media = await Promise.all(entries.map(async ({ type, file }) => ({ type, dataUrl: await toDataUrl(file) })));
+    const imageFiles: Blob[] = input.photo ? [input.photo] : [];
+    if (input.video) imageFiles.push(...await this.videoFrameExtractor(input.video));
+    if (imageFiles.length > 3) {
+      throw new WorkerClientError("送信できる画像は3枚までです。", "invalid_media_count", 400);
+    }
+    imageFiles.forEach((file) => assertMediaFile("image", file));
+    const media = await Promise.all(imageFiles.map(async (file) => ({ type: "image" as const, dataUrl: await toDataUrl(file) })));
 
     return this.analyze({
       prompt: ownerAnalysisPrompt(input),
