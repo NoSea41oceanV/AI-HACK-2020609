@@ -1,0 +1,525 @@
+:root {
+  --owner-ink: #24352e;
+  --owner-muted: #68766f;
+  --owner-sage-50: #f3f7f4;
+  --owner-sage-100: #e5eee8;
+  --owner-sage-300: #aec7b7;
+  --owner-sage-600: #527c64;
+  --owner-sage-700: #3d6650;
+  --owner-coral: #ed765f;
+  --owner-coral-dark: #d8604b;
+  --owner-border: #dce5df;
+  --owner-error: #b54435;
+  --owner-radius-lg: 24px;
+  --owner-radius-md: 14px;
+  --owner-shadow: 0 18px 54px rgba(54, 88, 69, 0.1);
+}
+
+.owner-form-page,
+.owner-form-page * {
+  box-sizing: border-box;
+}
+
+.owner-form-page {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--owner-ink);
+  background: #fff;
+  font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+}
+
+.owner-form-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: min(100% - 40px, 920px);
+  min-height: 72px;
+  margin: 0 auto;
+  border-bottom: 1px solid var(--owner-border);
+}
+
+.owner-form-header > p {
+  margin: 0;
+  color: var(--owner-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+
+.owner-form-brand {
+  display: inline-flex;
+  gap: 9px;
+  align-items: center;
+  color: var(--owner-ink);
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: 0.13em;
+  text-decoration: none;
+}
+
+.owner-form-brand-mark {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  color: #fff;
+  background: var(--owner-sage-600);
+  border-radius: 10px 10px 12px 8px;
+  font-family: Georgia, serif;
+  font-size: 18px;
+  font-style: italic;
+  letter-spacing: 0;
+  transform: rotate(-4deg);
+}
+
+.owner-form-intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 32px;
+  align-items: end;
+  width: min(100% - 40px, 760px);
+  margin: 68px auto 42px;
+}
+
+.owner-form-intro h1 {
+  margin: 0 0 16px;
+  color: var(--owner-ink);
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-size: clamp(34px, 6vw, 50px);
+  font-weight: 700;
+  line-height: 1.28;
+  letter-spacing: 0.02em;
+}
+
+.owner-form-intro > div > p {
+  max-width: 480px;
+  margin: 0;
+  color: var(--owner-muted);
+  font-size: 14px;
+}
+
+.owner-form-invite {
+  display: flex;
+  flex-direction: column;
+  padding: 18px 20px;
+  background: var(--owner-sage-50);
+  border: 1px solid var(--owner-sage-100);
+  border-radius: var(--owner-radius-md);
+}
+
+.owner-form-invite span,
+.owner-form-invite small {
+  color: var(--owner-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.owner-form-invite strong {
+  overflow: hidden;
+  margin: 2px 0 5px;
+  font-size: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.owner-form {
+  width: min(100% - 40px, 760px);
+  margin: 0 auto;
+  padding-bottom: 90px;
+}
+
+.owner-form fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 38px 0 44px;
+  border: 0;
+  border-top: 1px solid var(--owner-border);
+}
+
+.owner-form legend {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 0 0 26px;
+  padding: 0;
+  color: var(--owner-ink);
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.owner-form legend span {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  color: #fff;
+  background: var(--owner-sage-600);
+  border-radius: 50%;
+  font-family: inherit;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.owner-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px 18px;
+}
+
+.owner-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--owner-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.owner-field-wide {
+  grid-column: 1 / -1;
+}
+
+.owner-field em {
+  margin-left: 5px;
+  color: var(--owner-coral-dark);
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.owner-field input,
+.owner-field select,
+.owner-field textarea {
+  width: 100%;
+  min-height: 50px;
+  margin: 0;
+  padding: 13px 15px;
+  color: var(--owner-ink);
+  background: #fff;
+  border: 1px solid #cfdad3;
+  border-radius: 10px;
+  outline: 0;
+  font: 500 15px/1.55 "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.owner-field textarea {
+  min-height: 112px;
+  resize: vertical;
+}
+
+.owner-field input::placeholder,
+.owner-field textarea::placeholder {
+  color: #9aa69f;
+}
+
+.owner-field input:focus-visible,
+.owner-field select:focus-visible,
+.owner-field textarea:focus-visible,
+.owner-media-drop:has(+ .owner-media-native:focus-visible),
+.owner-submit-button:focus-visible,
+.owner-media-preview button:focus-visible,
+.owner-form-brand:focus-visible {
+  border-color: var(--owner-sage-600);
+  box-shadow: 0 0 0 4px rgba(82, 124, 100, 0.16);
+}
+
+.owner-input-unit {
+  position: relative;
+  display: block;
+}
+
+.owner-input-unit input {
+  padding-right: 48px;
+}
+
+.owner-input-unit b {
+  position: absolute;
+  top: 50%;
+  right: 15px;
+  color: var(--owner-muted);
+  font-size: 12px;
+  transform: translateY(-50%);
+}
+
+.owner-fieldset-help {
+  max-width: 610px;
+  margin: -12px 0 22px;
+  color: var(--owner-muted);
+  font-size: 13px;
+}
+
+.owner-media-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.owner-media-field {
+  min-width: 0;
+}
+
+.owner-media-native {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.owner-media-drop {
+  display: flex;
+  min-height: 220px;
+  padding: 26px 18px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--owner-ink);
+  background: var(--owner-sage-50);
+  border: 1px dashed var(--owner-sage-300);
+  border-radius: var(--owner-radius-md);
+  cursor: pointer;
+  text-align: center;
+  transition: background-color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.owner-media-drop:hover {
+  background: #edf4ef;
+  border-color: var(--owner-sage-600);
+  transform: translateY(-2px);
+}
+
+.owner-media-icon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 13px;
+  place-items: center;
+  color: var(--owner-sage-700);
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 5px 14px rgba(61, 102, 80, 0.1);
+}
+
+.owner-media-icon svg {
+  width: 23px;
+  height: 23px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.owner-media-drop strong {
+  font-size: 14px;
+}
+
+.owner-media-drop small {
+  margin: 3px 0 15px;
+  color: var(--owner-muted);
+  font-size: 10px;
+}
+
+.owner-media-action {
+  padding: 7px 14px;
+  color: var(--owner-sage-700);
+  background: #fff;
+  border: 1px solid var(--owner-sage-300);
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.owner-media-preview {
+  position: relative;
+  min-height: 220px;
+  overflow: hidden;
+  background: #18231e;
+  border: 1px solid var(--owner-border);
+  border-radius: var(--owner-radius-md);
+}
+
+.owner-media-preview img,
+.owner-media-preview video {
+  display: block;
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+}
+
+.owner-media-preview > div {
+  display: flex;
+  min-width: 0;
+  padding: 13px 62px 13px 14px;
+  flex-direction: column;
+  color: #fff;
+}
+
+.owner-media-preview strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.owner-media-preview span {
+  color: #bdc9c2;
+  font-size: 10px;
+}
+
+.owner-media-preview button {
+  position: absolute;
+  right: 12px;
+  bottom: 16px;
+  padding: 5px 9px;
+  color: #fff;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 999px;
+  cursor: pointer;
+  font: 700 10px/1.4 inherit;
+}
+
+.owner-media-error {
+  margin: 8px 2px 0;
+  color: var(--owner-error);
+  font-size: 12px;
+}
+
+.owner-form-submit-area {
+  padding: 34px;
+  text-align: center;
+  background: var(--owner-sage-50);
+  border-radius: var(--owner-radius-lg);
+  box-shadow: var(--owner-shadow);
+}
+
+.owner-form-submit-area > p:first-child {
+  margin: 0 0 19px;
+  color: var(--owner-muted);
+  font-size: 12px;
+}
+
+.owner-submit-message {
+  margin: 0 0 14px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.owner-submit-error {
+  color: var(--owner-error);
+}
+
+.owner-submit-success {
+  color: var(--owner-sage-700);
+}
+
+.owner-submit-button {
+  display: inline-flex;
+  width: min(100%, 340px);
+  min-height: 56px;
+  padding: 14px 22px;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  color: #fff;
+  background: var(--owner-coral);
+  border: 0;
+  border-radius: 999px;
+  box-shadow: 0 10px 25px rgba(237, 118, 95, 0.24);
+  cursor: pointer;
+  font: 800 14px/1.4 "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+  transition: background-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.owner-submit-button:hover:not(:disabled) {
+  background: var(--owner-coral-dark);
+  box-shadow: 0 13px 28px rgba(216, 96, 75, 0.3);
+  transform: translateY(-2px);
+}
+
+.owner-submit-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.owner-submit-button span {
+  font-size: 21px;
+  line-height: 1;
+}
+
+@media (max-width: 640px) {
+  .owner-form-header > p {
+    display: none;
+  }
+
+  .owner-form-header,
+  .owner-form-intro,
+  .owner-form {
+    width: min(100% - 32px, 760px);
+  }
+
+  .owner-form-header {
+    min-height: 62px;
+  }
+
+  .owner-form-intro {
+    grid-template-columns: 1fr;
+    gap: 22px;
+    margin-top: 42px;
+    margin-bottom: 34px;
+  }
+
+  .owner-form-intro h1 {
+    font-size: clamp(32px, 10vw, 42px);
+  }
+
+  .owner-form-invite {
+    padding: 14px 16px;
+  }
+
+  .owner-form fieldset {
+    padding: 32px 0 38px;
+  }
+
+  .owner-form legend {
+    font-size: 19px;
+  }
+
+  .owner-form-grid,
+  .owner-media-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .owner-field-wide {
+    grid-column: auto;
+  }
+
+  .owner-media-drop,
+  .owner-media-preview {
+    min-height: 200px;
+  }
+
+  .owner-form-submit-area {
+    margin-inline: -4px;
+    padding: 28px 18px;
+    border-radius: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .owner-form-page *,
+  .owner-form-page *::before,
+  .owner-form-page *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

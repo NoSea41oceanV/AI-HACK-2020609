@@ -1,0 +1,49 @@
+.observation-demo {
+  --sage-50: #f4f8f1;
+  --sage-100: #e5efdf;
+  --sage-600: #52725a;
+  --ink: #253128;
+  --muted: #68736c;
+  --coral-50: #fff1ec;
+  --coral-500: #d96c54;
+  background: #fff;
+  border: 1px solid #deead9;
+  border-radius: 20px;
+  color: var(--ink);
+  padding: clamp(1rem, 3vw, 1.75rem);
+}
+
+.observation-demo__heading { align-items: flex-start; display: flex; gap: 1rem; justify-content: space-between; }
+.observation-demo__heading h2 { font-size: 1.35rem; margin: .15rem 0 .35rem; }
+.observation-demo__heading p { color: var(--muted); margin: 0; }
+.observation-demo__eyebrow { color: var(--sage-600) !important; font-size: .73rem; font-weight: 800; letter-spacing: .09em; }
+.observation-demo__notice { background: var(--coral-50); border-radius: 999px; color: #a64a39; font-size: .8rem; font-weight: 700; padding: .4rem .65rem; white-space: nowrap; }
+.observation-demo__picker { display: grid; font-size: .86rem; font-weight: 700; gap: .4rem; margin-top: 1.25rem; max-width: 32rem; }
+.observation-demo__picker select { background: #fff; border: 1px solid #bfcdbc; border-radius: 9px; color: var(--ink); font: inherit; padding: .7rem .75rem; }
+.observation-demo__scenario { background: var(--sage-50); border-radius: 14px; margin-top: 1rem; padding: 1rem; }
+.observation-demo__source { align-items: center; display: flex; gap: .7rem; }
+.observation-demo__source strong { font-size: .82rem; }
+.observation-demo__source p, .observation-demo__description { color: var(--muted); font-size: .9rem; margin: .16rem 0 0; }
+.observation-demo__play { align-items: center; background: var(--sage-600); border-radius: 50%; color: #fff; display: inline-flex; font-size: .7rem; height: 2rem; justify-content: center; width: 2rem; }
+.observation-demo__description { margin-top: .8rem; }
+.observation-demo__grid { display: grid; gap: 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 1rem; }
+.observation-demo__panel { border: 1px solid #e5e9e2; border-radius: 14px; padding: 1rem; }
+.observation-demo__panel h3 { font-size: .98rem; margin: 0 0 .8rem; }
+.observation-demo__facts, .observation-demo__impacts { display: grid; gap: .65rem; list-style: none; margin: 0; padding: 0; }
+.observation-demo__fact, .observation-demo__impacts li { display: flex; gap: .65rem; }
+.observation-demo__fact > span { align-items: center; background: var(--sage-100); border-radius: 50%; color: var(--sage-600); display: inline-flex; font-weight: 800; height: 1.45rem; justify-content: center; width: 1.45rem; }
+.observation-demo__fact--tense > span, .observation-demo__fact--overexcited > span { background: var(--coral-50); color: var(--coral-500); }
+.observation-demo__facts strong, .observation-demo__impacts strong { font-size: .88rem; }
+.observation-demo__facts p, .observation-demo__impacts p { color: var(--muted); font-size: .82rem; line-height: 1.45; margin: .12rem 0 0; }
+.observation-demo__severity { border-radius: 999px; font-size: .7rem; font-weight: 800; height: fit-content; padding: .2rem .4rem; white-space: nowrap; }
+.observation-demo__severity--info { background: var(--sage-100); color: #46674d; }
+.observation-demo__severity--attention { background: #fff6df; color: #856000; }
+.observation-demo__severity--high { background: var(--coral-50); color: #a64a39; }
+.observation-demo__recommendation { align-items: center; background: #fff9f6; border: 1px solid #fae0d6; border-radius: 14px; display: flex; gap: 1rem; justify-content: space-between; margin-top: 1rem; padding: 1rem; }
+.observation-demo__recommendation p { color: var(--coral-500); font-size: .78rem; font-weight: 800; margin: 0 0 .25rem; }
+.observation-demo__recommendation strong { font-size: .9rem; }
+.observation-demo__recommendation button { background: var(--coral-500); border: 0; border-radius: 9px; color: #fff; cursor: pointer; flex: 0 0 auto; font: inherit; font-weight: 800; padding: .75rem 1rem; }
+.observation-demo__recommendation button:focus-visible, .observation-demo__picker select:focus-visible { outline: 3px solid #8bb294; outline-offset: 2px; }
+.observation-demo__recommendation button:disabled { cursor: not-allowed; opacity: .55; }
+.observation-demo__empty { color: var(--muted); margin: 0; }
+@media (max-width: 640px) { .observation-demo__heading, .observation-demo__recommendation { align-items: stretch; flex-direction: column; } .observation-demo__notice { align-self: flex-start; } .observation-demo__grid { grid-template-columns: 1fr; } .observation-demo__recommendation button { width: 100%; } }

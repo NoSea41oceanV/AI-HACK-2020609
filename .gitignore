@@ -10,14 +10,21 @@ credentials/
 *.p12
 *.pfx
 
-# Reserved root-level generated output, cache, and temporary directories.
-# These conventions do not select a language or framework.
+# Dependencies, generated output, cache, and temporary directories.
+/node_modules/
 /build/
 /dist/
 /coverage/
 /.cache/
+/.agents/
 /tmp/
+*.tsbuildinfo
 *.log
+
+# Firebase and Cloudflare local state/secrets.
+/.firebase/
+/.wrangler/
+wrangler.toml
 
 # OS-generated metadata.
 .DS_Store
