@@ -72,7 +72,7 @@ Firebase Cloud Functions、Firebase Cloud Storage、Workers Paidを使わない�
 
 ## 8. 設定・Secret
 
-Firebase Web configとProject IDは実値を `.env.example` 等へ書かず、ローカル環境設定へ登録する。OrcaRouter SecretはCloudflare Worker Secretへだけ設定する。旧チャット貼付キーは使用禁止。Cloudflareログイン、Secret再発行、外部AI送信承認の保留が解消されるまで実接続・配備は完了扱いにしない。
+Firebase Web configとProject IDは実値を `.env.example` 等へ書かず、ローカル環境設定へ登録する。Cloudflare Workers Freeの `pet-hotel-agent-api` 作成と、新規 `ORCAROUTER_API_KEY` Secretの暗号化登録は報告済みだが、現在のWorkerソース配備・Secret参照・実リクエストは未確認。以前チャットに貼られたキーは使用禁止。許可済みの外部送信範囲は性格・遊び方・注意事項・写真・動画に限る。飼い主名・連絡先・音声とrequest bodyはログへ出さない。Firebase設定と実接続確認が済むまで実フローの完了扱いにしない。
 
 ## 9. 検証・完了条件
 

@@ -35,7 +35,7 @@ npm run dev
 
 ## 接続設定・配備
 
-Firebase Web configとProject ID、Cloudflareログイン、再発行済みOrcaRouter Secretが未確認です。以前チャットに貼られたキーは使わないでください。新しいキーはCloudflare Worker Secretにのみ登録し、ブラウザ変数、リポジトリ、Firestore、ログには置きません。
+Firebase Web configとProject IDは未確認です。Cloudflare Workers Freeに `pet-hotel-agent-api` が作成され、新しい `ORCAROUTER_API_KEY` Secret が暗号化登録されたとの報告はありますが、現在のWorkerソース配備と実リクエストは未確認です。外部送信が許可されたのは性格・遊び方・注意事項・写真・動画のみです。飼い主名・連絡先・音声はWorkerリクエスト、OrcaRouter送信、ログへ含めません。以前チャットに貼られたキーは使用せず、新しいSecretの値をブラウザ、リポジトリ、Firestore、ログへ出しません。
 
 実設定値を作成・配備する前に、タスク台帳の保留事項を解消してください。Firebase SparkとWorkers Freeを越える設定へ移行しません。配備手順は [DEPLOYMENT.md](docs/DEPLOYMENT.md) が担当文書です。
 
