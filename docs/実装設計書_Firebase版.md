@@ -1,6 +1,6 @@
 # Firebase版 実装設計書
 
-> 目標仕様と2026-09-22時点の確認済み状態を記す。Cloudflare Worker / OrcaRouterの実疎通は確認済みだが、Firebase Hosting / Rules配備、実Firestore read-back、全体E2Eは未確認である。コード実装と外部稼働を混同しない。
+> 目標仕様と2026-09-22時点の確認済み状態を記す。Firebase Hosting / Rules、Cloudflare Worker / OrcaRouter、実Firestore read-back、公開E2Eまで確認済みである。本番運用向け認証を備えた構成ではない。
 
 ## 1. 採用構成
 
@@ -15,14 +15,14 @@
 | 相性・最適化 | TypeScript決定ロジック。全ペア採点後に最適化 |
 | 利用者 | 単一利用者、固定URL |
 
-Firebase Project IDは `pawpair-ai-hack-2026`、Web App設定、Firestoreリージョン `asia-northeast1`、Sparkプランまで設定済みである。Firebase CLI本人認証、実データのread-back、Hosting / Rules配備は未確認。
+Firebase Project IDは `pawpair-ai-hack-2026`、Firestoreリージョン `asia-northeast1`、Sparkプランである。Hosting / Rulesを配備し、`https://pawpair-ai-hack-2026.web.app` と実データのread-backを確認済みである。
 
 Firebase Cloud Functions、Firebase Cloud Storage、Workers Paidを使わない。
 
 ## 2. 現状コードと差分
 
 - Repositoryには開発用localStorage実装もあるが、AppはFirebase未設定時にエラー表示し、成功扱いでlocalStorageへ切り替えない。Firebase有効時のOwnerIntakeをlocalStorageへミラーしない。
-- AppはOwnerFormからWorker解析を実行し、構造化分析結果を含む受付をFirestoreへcreateする。その後Profileを保存・読戻ししてから全ペア採点・最適化を保存する。実Firebase read-backは未確認。
+- AppはOwnerFormからWorker解析を実行し、構造化分析結果を含む受付をFirestoreへcreateする。その後Profileを保存・read-backしてから全ペア採点・最適化を保存する。公開E2Eでこの経路を確認済みである。
 - `AIWorkerClient` とWorker `/api/analyze` はフォーム送信動線へ接続済み。payloadは性格・遊び方・注意事項の3項目と画像だけで、その他のprofile keyを作らない。
 - 写真は画像data URLとして送る。動画はブラウザで25%・75%地点から最大2枚、長辺1280px、JPEG品質0.82の静止画を抽出し、元動画と動画内音声はWorkerへ送らない。
 - WorkerはWorkers Freeへ配備済みで、health、Secret参照、media storage無効、OrcaRouter実構造化分析を確認済み。旧`prompt`は400、raw動画・音声は415で拒否する。
@@ -56,7 +56,7 @@ Firebase Cloud Functions、Firebase Cloud Storage、Workers Paidを使わない�
 | `GET /health` | Workerの状態確認 | Secret値を返さない |
 | `POST /api/analyze` | 3項目のprofileと一時画像をOrcaRouterへ送り、構造化分析を返す | 飼い主名・連絡先・元動画・音声なし。失敗は明示エラー |
 
-永続R2へのmedia upload APIは本要件では使用しない。現コードは写真と動画から抽出したJPEGフレームだけを一時画像data URLで分析リクエストに含め、永続保存APIを無効化している。Workerはraw動画・音声を415で拒否する。完了/失敗/timeout後も媒体が残らないことを実E2Eで確認する。API keyは `ORCAROUTER_API_KEY` SecretとしてWorkerだけに設定し、以前チャットへ貼付したキーは再利用しない。
+永続R2へのmedia upload APIは本要件では使用しない。現コードは写真と動画から抽出したJPEGフレームだけを一時画像data URLで分析リクエストに含め、永続保存APIを無効化している。Workerはraw動画・音声を415で拒否し、healthの `mediaStorageConfigured` はfalseである。API keyは `ORCAROUTER_API_KEY` SecretとしてWorkerだけに設定し、以前チャットへ貼付したキーは再利用しない。
 
 ## 6. ペア採点と最適化
 
@@ -74,17 +74,17 @@ Firebase Cloud Functions、Firebase Cloud Storage、Workers Paidを使わない�
 
 ## 8. 設定・Secret
 
-Firebase Project ID `pawpair-ai-hack-2026` / Web App設定 / Firestore `asia-northeast1` / Sparkは設定済み。公開Web設定は `.env.local` に置き、`.env.example` はダミー値のままにする。リポジトリの `.firebaserc` は実Project IDを設定済みなので上書きしない。Firebase CLI本人認証、Hosting / Rules配備、実read-backは未確認である。
+Firebase Project ID `pawpair-ai-hack-2026` / Firestore `asia-northeast1` / Spark / Hosting / Rules / 実read-backは確認済み。公開Web設定は `.env.local` に置き、`.env.example` はダミー値のままにする。リポジトリの `.firebaserc` は実Project IDを設定済みなので上書きしない。
 
 Cloudflare Workers Freeの `pet-hotel-agent-api` と、新規 `ORCAROUTER_API_KEY` Secret参照、実OrcaRouter応答は確認済みである。以前チャットに貼られたキーは使用禁止。許可済みの外部送信範囲は性格・遊び方・注意事項と画像に限り、動画はJPEGフレームへ変換する。飼い主名・連絡先・元動画・音声とrequest bodyはログへ出さない。
 
 ## 9. 検証・完了条件
 
 - 単体: n(n-1)/2全ペア、禁止条件、定員、解なし、決定性。
-- データ: Firebase書込後のread-back、AI結果と性格パラメータのread-back、PII非含有のWorker payload。
-- Worker: 実配備先へのhealthとOrcaRouter構造化応答、旧payload/raw動画/音声の拒否は確認済み。失敗時UIとSecret/PII/媒体のログ非含有を統合E2Eで確認する。
+- データ: AI分析を含む受付の保存と、AI由来性格パラメータを含む非PIIプロフィールのread-backを公開E2Eで確認。OwnerIntake localStorage keyはnull。
+- Worker: 実配備先へのhealthとOrcaRouter構造化応答、旧payload 400、raw動画/音声415、media storage falseを確認済み。
 - メディア: 解析後に原本、R2オブジェクト、一時URLが残らず、動画から抽出したJPEG以外と動画音声が外部へ送られないこと。
-- 統合E2E: フォーム→Worker→OrcaRouter→Firestore結果保存/read-back→全ペア採点→部屋最適化。
+- 統合E2E: 架空2頭でフォーム→Worker→OrcaRouter→Firestore受付保存→非PIIプロフィール保存/read-back→全1ペア採点→1部屋最適化→当日観測保存・再計算→施設オペレーター確定まで成功。
 - プラン: Firebase Spark、Cloudflare Workers Freeであること。
 
-この文書の更新時点で、Cloudflare Worker / OrcaRouter実疎通は確認済みである。Firebase配備・read-backと、それを含む全体E2Eは未確認であり、実行していない検証を成功として報告しない。
+最終検証はアプリ34/34、Worker 15/15、typecheck、build、`qa-preflight` が成功した。公開画面のconsole error/warnは0件、390 × 844のモバイル表示も成功した。ブラウザfetchの `Illegal invocation` はcommit `9078b51` で修正済みである。

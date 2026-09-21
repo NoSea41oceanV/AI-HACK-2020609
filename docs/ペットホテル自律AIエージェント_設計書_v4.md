@@ -1,6 +1,6 @@
 # ペットホテルAIマッチングエージェント 設計書 v4
 
-> 本書は確定した目標仕様と、2026-09-22時点の確認済み状態を分けて記す。Cloudflare Worker / OrcaRouterの実疎通は確認済みだが、Firebase配備・read-backと全体E2Eは未確認であり、本番稼働を意味しない。
+> 本書は確定した目標仕様と、2026-09-22時点の確認済み状態を分けて記す。Firebase / Cloudflare Worker配備、OrcaRouter実解析、Firestore read-back、公開E2Eを確認済みである。認証を省いたハッカソン限定構成であり、本番稼働を意味しない。
 
 ## 1. 目的
 
@@ -24,16 +24,16 @@
 | 料金 | Firebase SparkとCloudflare Workers Freeのみ。Firebase有料機能を使わない |
 | Secret | 以前チャットに貼られたキーは使用禁止。再発行キーをWorker Secretにだけ設定 |
 
-Firebase Project IDは `pawpair-ai-hack-2026`、Web App設定、Firestoreリージョン `asia-northeast1`、Sparkプランまで設定済みである。Firebase CLI本人認証、Hosting / Rules配備、実Firestore保存確認は未確認。
+Firebase Project IDは `pawpair-ai-hack-2026`、Firestoreリージョンは `asia-northeast1`、プランはSparkである。Hosting / Rules配備、`https://pawpair-ai-hack-2026.web.app`、実Firestore保存/read-backを確認済みである。
 
 ## 3. 現在の実装状態
 
 - OwnerFormはフォーム入力と画像・動画の選択、ブラウザ内プレビューを実装している。
-- AppはFirebase未設定をエラーにし、localStorageの成功代替へは切り替えない。Firebase有効時のOwnerIntakeをlocalStorageへミラーしない。Firebase Project / Web App / リージョン / Sparkは設定済みだが、配備とread-backは未確認。
-- OwnerFormの送信処理はWorker解析を行い、分析結果・性格パラメータを含む受付をFirestoreへ保存する。その後プロフィールを保存しread-backを確認してからマッチングを計算・保存する。Worker / OrcaRouterは確認済みだが、Firestore以降の実処理は未確認。
+- AppはFirebase未設定をエラーにし、localStorageの成功代替へは切り替えない。Firebase有効時のOwnerIntakeをlocalStorageへミラーせず、公開E2Eでも該当keyがnullであることを確認済みである。
+- OwnerFormの送信処理はWorker解析を行い、分析結果・性格パラメータを含む受付をFirestoreへ保存する。その後プロフィールを保存しread-backを確認してからマッチングを計算・保存する。公開E2Eでこの実処理を確認済みである。
 - Workerクライアントと `/api/analyze` はフォームへ接続済みで、現行WorkerをWorkers Freeへ配備し、OrcaRouterの実構造化応答を確認済みである。
 - Workerは永続media uploadを410で無効化し、写真と動画由来JPEGフレームだけを一時画像data URLで解析する。動画はブラウザで最大2枚のJPEGへ変換し、元動画と動画内音声を送らない。
-- 全ペア列挙、スコア計算、制約下の部屋探索コードはある。外部データでの実E2Eは未確認。
+- 全ペア列挙、スコア計算、制約下の部屋探索コードがあり、架空2頭の全1ペア採点、1部屋最適化、当日観測後の再計算、施設オペレーター確定まで公開E2Eで確認済みである。
 - ブラウザ選択の音声ファイルを受け付けず、Workerはraw動画・音声MIME入力を415で拒否する。動画の音声トラックは送信せず、抽出した静止画だけを扱う。
 
 ## 4. 登録と分析の目標フロー
@@ -46,7 +46,7 @@ Firebase Project IDは `pawpair-ai-hack-2026`、Web App設定、Firestoreリー�
 6. 解析終了時に一時メディアを破棄し、永続ストレージやログへ残さない。
 7. AI失敗は画面に明示し、再試行操作を提示する。失敗した受付やAI未実行プロフィールを成功状態でFirestoreへ保存しない。
 
-処理のコード動線とCloudflare Worker / OrcaRouter実疎通は確認済みである。Firebase Hosting / Rules配備、実AI結果のFirestore保存/read-backを含むE2Eは未確認である。ER図とアーキテクチャ図はコード状態と外部実行証跡を分けて示す。
+Firebase Hosting / Rules、Cloudflare Worker / OrcaRouter、実AI結果を含む受付保存、AI由来非PIIプロフィールのread-back、全ペア採点、最適化、観測再計算、最終確定まで公開E2Eで確認済みである。ER図とアーキテクチャ図はコード状態と外部実行証跡を分けて示す。
 
 ## 5. 性格パラメータ
 
@@ -59,7 +59,7 @@ Firebase Project IDは `pawpair-ai-hack-2026`、Web App設定、Firestoreリー�
 | 遊び方 | `chase`, `wrestle`, `tug`, `fetch`, `gentle`, `solo` の集合 |
 | AI分析 | summary、observations、evidence付きtraits、riskFlags、confidence |
 
-これらを含むOrcaRouterの実構造化出力は確認済みである。Firebase永続保存は未確認。
+これらを含むOrcaRouterの実構造化出力、Firebase受付への永続保存、AI由来非PIIプロフィールのread-backを確認済みである。
 
 ## 6. 全ペア採点と部屋最適化
 
@@ -91,4 +91,4 @@ Firebase Project IDは `pawpair-ai-hack-2026`、Web App設定、Firestoreリー�
 
 ## 9. 完了判定
 
-Worker実配備・health・OrcaRouter実解析は確認済みである。Firebase保存/read-back、分析結果の再読込、媒体破棄、名前・連絡先・元動画・音声の非送信、全ペア→最適化→確定を含む実E2Eが確認できて初めて本フローを完了とする。実施していないテスト・配備は完了欄に記載しない。詳細は [TASKS.md](../TASKS.md) を参照。
+2026-09-22に、架空2頭の登録からWorker / OrcaRouter実解析、Firebase保存/read-back、全1ペア→1部屋最適化→観測再計算→施設オペレーター確定まで公開E2Eで確認した。アプリ34/34、Worker 15/15、typecheck、build、`qa-preflight` が成功し、console error/warn 0、390 × 844表示も確認済みである。ブラウザfetchの `Illegal invocation` はcommit `9078b51` で修正された。詳細は [TASKS.md](../TASKS.md) を参照。

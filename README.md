@@ -6,7 +6,7 @@
 
 目標の流れは、飼い主フォーム → Cloudflare Workers Freeへの実リクエスト → OrcaRouterによる文章・写真・動画由来の静止画フレームの実解析 → 性格パラメータと分析結果のFirebase Spark保存 → 全ペア実採点 → 部屋最適化です。
 
-Cloudflare Worker `pet-hotel-agent-api` はWorkers Freeへ配備済みで、[`/health`](https://pet-hotel-agent-api.nosea41oceanv.workers.dev/health) とOrcaRouterの実構造化分析を確認済みです。FirebaseはProject ID、Web App設定、Sparkプラン、Firestore `asia-northeast1` まで設定済みですが、Firebase CLIの本人認証が残っているためHosting / Firestore Rulesの実配備と実Firestore read-backは未確認です。したがって、フロー全体の実E2Eはまだ完了扱いにしません。進捗は [TASKS.md](TASKS.md) を参照してください。
+Firebase Hosting / Firestore RulesとCloudflare Workerは配備済みです。2026-09-22に、架空2頭のOwnerフォーム登録からOrcaRouter実分析、Firestore保存/read-back、全1ペア採点、1部屋最適化、当日観測による再計算、施設オペレーター最終確定までの公開E2Eを確認しました。公開URLは `https://pawpair-ai-hack-2026.web.app`、Workerは [`/health`](https://pet-hotel-agent-api.nosea41oceanv.workers.dev/health) で稼働しています。進捗と証跡は [TASKS.md](TASKS.md) を参照してください。
 
 ## 固定要件
 
@@ -38,7 +38,7 @@ npm run dev
 
 ## 接続設定・配備
 
-Firebase Project ID `pawpair-ai-hack-2026`、Web App設定、Firestoreリージョン `asia-northeast1`、Sparkプランは設定済みです。Firebase CLIの本人認証、実Firestore read-back、Hosting / Rules配備は未確認です。リポジトリの `.firebaserc` は実Project IDを設定済みなので、サンプルで上書きしないでください。
+Firebase Project ID `pawpair-ai-hack-2026`、Firestoreリージョン `asia-northeast1`、Sparkプラン、Hosting / Rules配備、実Firestore read-backを確認済みです。Hosting URLは `https://pawpair-ai-hack-2026.web.app` です。リポジトリの `.firebaserc` は実Project IDを設定済みなので、サンプルで上書きしないでください。
 
 Cloudflare Workers Freeの `pet-hotel-agent-api` は `https://pet-hotel-agent-api.nosea41oceanv.workers.dev` へ配備済みです。`health`、新しい `ORCAROUTER_API_KEY` Secret参照、実OrcaRouter構造化分析、media storage無効を確認済みです。旧`prompt`形式は400、raw動画・音声は415で拒否します。飼い主名・連絡先・音声・request bodyをログへ含めず、以前チャットに貼られたキーも使用しません。
 
@@ -52,7 +52,7 @@ npm test
 npm run build
 ```
 
-Workerのテストは `npm --prefix worker test` で実行します。Cloudflare WorkerとOrcaRouterの実疎通は確認済みですが、自動テストやその疎通だけではFirebase保存を含む全体E2Eを証明しません。Firebase配備後に実施結果を記録してください。
+Workerのテストは `npm --prefix worker test` で実行します。最終確認ではアプリ34/34、Worker 15/15、typecheck、build、`qa-preflight` が成功しました。公開E2Eではブラウザconsole error/warn 0、OwnerIntakeのlocalStorage keyがnull、390 × 844のモバイル表示も確認済みです。ブラウザfetchの `Illegal invocation` はcommit `9078b51` で修正されています。
 
 ## 設計資料
 

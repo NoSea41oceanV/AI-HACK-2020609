@@ -4,20 +4,22 @@
 
 ## 現在の配備状態
 
-- Firebase: `pawpair-ai-hack-2026`、Web App設定、Spark、Firestore `asia-northeast1` は設定済み。Firebase CLI本人認証が未完了のため、Hosting / Rulesの実配備とFirestore read-backは未確認。
+- Firebase: `pawpair-ai-hack-2026`、Web App設定、Spark、Firestore `asia-northeast1`、Hosting / Rules配備、実read-backを確認済み。Hosting URLは `https://pawpair-ai-hack-2026.web.app`。
 - Cloudflare: `pet-hotel-agent-api` をWorkers Freeへ配備済み。URLは `https://pet-hotel-agent-api.nosea41oceanv.workers.dev`。health、OrcaRouter実構造化分析、media storage無効を確認済み。
 
-## 1. Firebase
+## 1. Firebaseを再配備する
 
 リポジトリの `.firebaserc` は実Project IDを設定済みです。`.firebaserc.example` などのサンプルで上書きしないでください。
 
-1. `.env.example` を `.env.local` にコピーする。
+次の手順は初回配備ではなく、更新時の再配備手順です。
+
+1. `.env.local` がない開発環境だけ、`.env.example` を `.env.local` にコピーする。
 2. `.env.local` にFirebase公開Web設定4項目と、配備済みWorkerの `VITE_AI_WORKER_URL` を設定する。Secretは書かない。
 3. Firebase CLIへ本人認証し、対象Projectを確認する。
 4. 検証・ビルド後、Firestore RulesとHostingだけを配備する。
 
 ```powershell
-Copy-Item .env.example .env.local
+if (!(Test-Path .env.local)) { Copy-Item .env.example .env.local }
 npm install
 npm run typecheck
 npm test
@@ -51,11 +53,11 @@ Invoke-RestMethod https://pet-hotel-agent-api.nosea41oceanv.workers.dev/health
 
 1. 飼い主フォームから1頭登録する。
 2. スタッフ画面に登録したペットが表示されることを確認する。
-3. 全ペアの相性スコアと3室の割当が再計算されることを確認する。
+3. 対象頭数の全ペア相性スコアと部屋割当が再計算されることを確認する。
 4. 配置を確定し、観測デモから再計算する。
 5. Firebase Consoleで `demoIntakes`、`demoPets`、`demoMatchingSnapshots`、`demoObservations` の追加を確認する。
 
-Worker単体のhealthとOrcaRouter実応答は確認済みです。Firebaseの配備・read-back・画面からの確定までが確認できるまでは、全体E2E成功と記録しません。
+2026-09-22に、架空2頭の登録、Worker / OrcaRouter実分析、Firestore受付保存、非PIIプロフィール保存/read-back、全1ペア採点、1部屋最適化、当日観測保存と再計算、施設オペレーター最終確定まで成功しました。ブラウザconsole error/warnは0件、OwnerIntakeのlocalStorage keyはnull、390 × 844のモバイル表示も成功しています。再配備時は同じ手順を回帰確認します。
 
 ## 無償枠を守る運用
 

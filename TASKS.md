@@ -2,10 +2,10 @@
 
 最終更新: 2026-09-22（JST）
 
-## 最重要の保留事項・確定した送信範囲
+## 完了状態・確定した送信範囲
 
 - **外部送信範囲**: ユーザー承認済み。性格・遊び方・注意事項と、写真または動画からブラウザで抽出したJPEGフレームだけを送る。飼い主名・連絡先・元動画・音声はWorkerリクエスト、OrcaRouter送信、ログのいずれにも含めず、request bodyもログ出力しない。
-- **Firebase設定・接続**: Project ID `pawpair-ai-hack-2026`、Web App設定、Firestore `asia-northeast1`、Sparkプランは設定済み。Firebase CLIの本人認証が未完了で、実Firestore read-backとHosting / Rules配備は未確認。
+- **Firebase設定・接続**: Project ID `pawpair-ai-hack-2026`、Firestore `asia-northeast1`、Spark、Hosting / Rules配備、公開URL `https://pawpair-ai-hack-2026.web.app`、実Firestore read-backを確認済み。
 - **Cloudflare Worker接続**: Workers Freeの `pet-hotel-agent-api` を `https://pet-hotel-agent-api.nosea41oceanv.workers.dev` へ配備済み。`health`、新規 `ORCAROUTER_API_KEY` Secret参照、media storage無効、実OrcaRouter構造化応答を確認済み。旧`prompt`は400、raw動画・音声は415で拒否する。
 - **料金境界**: FirebaseはSparkのみ。CloudflareもWorkers Freeのみ。上位プラン、課金移行、従量課金機能は採用しない。
 
@@ -16,18 +16,18 @@
 - 飼い主名・連絡先・音声は外部AIへ送信しない。画像・動画は解析処理の完了後に永続保存しない。分析結果と性格パラメータは保存する。
 - AI/Workerが失敗したときは明示的なエラー状態にする。固定結果、擬似成功、黙ったローカルAI代替は認めない。AIなしの独立した操作を提供する場合は、AI失敗を隠さず区別する。
 - 単一利用者、固定URL、音声なし。全ペアの採点完了後に部屋割り最適化を行う。
-- 実配備と実E2Eが終わるまでは配備済み・統合完了としない。コードや単体テストの存在を実接続の証拠にしない。
+- 2026-09-22の公開E2Eで、架空2頭の登録から実AI分析、Firestore保存/read-back、全1ペア採点、1部屋最適化、当日観測保存・再計算、施設オペレーター最終確定まで確認済み。
 
 ## 作業タスク
 
 | ID | 目的 | 状態 | 保留理由 / 必要なユーザー回答 | 次の一手 | 依存 | 主な担当ファイル | 検証方法 |
 |---|---|---|---|---|---|---|---|
-| [01] | Firebase Spark実保存と固定URL配備 | 配備待ち | Project / Web App / Spark / Firestoreリージョンは設定済み。Firebase CLI本人認証が未完了 | CLIログイン後、`firestore:rules,hosting`だけを配備しread-backを確認 | なし | `src/lib/firebase.ts`, `src/data/firestore*`, `firestore.rules`, `firebase.json`, `docs/DEPLOYMENT.md` | Firestore実保存のread-back、Rules確認、Sparkプラン確認、Hosting URLの実配備確認 |
-| [02] | Cloudflare Workers Freeへ実配備 | 配備・疎通済み | なし | Firebase Hostingのorigin確定後にCORSを再確認 | なし | `worker/**`, `wrangler.toml.example`, `docs/DEPLOYMENT.md` | Worker URLのhealth、実HTTP、media storage無効、Workers Freeを確認済み |
-| [03] | OrcaRouter実解析と失敗制御 | 実解析確認済み | ブラウザからFirebaseまでの統合E2Eは[01]待ち | Firebase配備後のUI経由E2Eで再確認 | [02] | `src/lib/workerClient.ts`, `worker/**`, `src/domain/intakeProfile.ts` | 実構造化応答成功、旧payload 400、raw動画/音声415を確認済み |
-| [04] | 入力保存・PII境界・媒体一時処理 | 実装済み・Firebase確認待ち | 実Firestore write/read-backは[01]待ち | UIから架空データを登録し、保存内容とWorker payloadを確認 | [01], [03] | `src/pages/OwnerForm.tsx`, `src/data/intakeRepository.ts`, `src/data/firestoreIntakeRepository.ts`, `worker/index.ts`, `firestore.rules` | Firebase read-back、AI payload検査、原本非保存、分析結果永続化 |
-| [05] | 全ペア実採点と部屋割り最適化の実接続 | 実装済み・Firebase確認待ち | 実FirestoreデータでのE2Eは[01][04]待ち | 複数頭を登録し、全組合せ計算後の保存・表示を確認 | [01], [04] | `src/domain/**`, `src/pages/**`, `src/data/firestorePetRepository.ts`, `src/data/firestoreOperationRepository.ts` | n(n-1)/2全ペア、採点完了後の最適化、制約/解なし結果 |
-| [06] | README・TASKS・設計書・図を確定要件と実装事実へ同期 | 完了 | Firebase実配備後に最終状態を追記する | Firebase配備証跡に応じて状態を更新 | [01]-[05]の現状を読取確認 | `README.md`, `TASKS.md`, `docs/ペットホテル自律AIエージェント_設計書_v4.md`, `docs/実装設計書_Firebase版.md`, `docs/ER図.md`, `docs/アーキテクチャ図.md`, `docs/HACKATHON_CHARTER.md` | 旧表現の横断検索、相対リンク、Mermaid fence、`git diff --check` |
+| [01] | Firebase Spark実保存と固定URL配備 | 完了 | なし | 再配備時に同じE2Eを回帰確認 | なし | `src/lib/firebase.ts`, `src/data/firestore*`, `firestore.rules`, `firebase.json`, `docs/DEPLOYMENT.md` | Hosting / Rules配備、Spark、Firestore write/read-back確認済み |
+| [02] | Cloudflare Workers Freeへ実配備 | 完了 | なし | 変更時にhealth・CORS・実AIを回帰確認 | なし | `worker/**`, `wrangler.toml.example`, `docs/DEPLOYMENT.md` | Worker URLのhealth、実HTTP、media storage無効、Workers Freeを確認済み |
+| [03] | OrcaRouter実解析と失敗制御 | 完了 | なし | 変更時に正常・拒否ケースを回帰確認 | [02] | `src/lib/workerClient.ts`, `worker/**`, `src/domain/intakeProfile.ts` | 実構造化応答成功、旧payload 400、raw動画/音声415を確認済み |
+| [04] | 入力保存・PII境界・媒体一時処理 | 完了 | なし | 公開匿名書込みと無料枠使用量を監視 | [01], [03] | `src/pages/OwnerForm.tsx`, `src/data/intakeRepository.ts`, `src/data/firestoreIntakeRepository.ts`, `worker/index.ts`, `firestore.rules` | AI分析を含む受付保存、非PIIプロフィール保存/read-back、OwnerIntake localStorage key nullを確認済み |
+| [05] | 全ペア実採点と部屋割り最適化の実接続 | 完了 | なし | ペット数増加時の回帰確認 | [01], [04] | `src/domain/**`, `src/pages/**`, `src/data/firestorePetRepository.ts`, `src/data/firestoreOperationRepository.ts` | 2頭の全1ペア、1部屋最適化、観測再計算、最終確定を確認済み |
+| [06] | README・TASKS・設計書・図を確定要件と実装事実へ同期 | 完了 | なし | 実装・配備変更時に更新 | [01]-[05] | `README.md`, `TASKS.md`, `docs/ペットホテル自律AIエージェント_設計書_v4.md`, `docs/実装設計書_Firebase版.md`, `docs/ER図.md`, `docs/アーキテクチャ図.md`, `docs/HACKATHON_CHARTER.md` | 旧表現の横断検索、相対リンク、Mermaid fence、`git diff --check` |
 
 ## 現在のコードから確認したこと
 
@@ -36,7 +36,7 @@
 - `src/lib/workerClient.ts` は性格・遊び方・注意事項だけでpayloadを作り、写真と、動画からブラウザ内で最大2枚抽出したJPEGフレームを `/api/analyze` へ送る。元動画と動画内音声は送らない。
 - 配備済みWorkerは3項目以外のprofile keyと旧`prompt`を拒否する。画像は最大3件、raw動画・音声は拒否し、`/api/media` は410で永続保存を拒否する。
 - Firebase未設定・Firestore失敗・Worker失敗は明示エラーとなり、localStorageや固定値の成功動線に切り替えない。
-- Worker / OrcaRouterの実疎通は確認済み。残る外部証跡はFirebase Hosting / Rules配備、Firestore read-back、UIから確定までの実E2Eである。
+- 公開E2EでFirebase Hosting / Rules、Firestore read-back、UIから観測再計算・確定までを確認済み。console error/warn 0、390 × 844のモバイル表示も成功した。
 
 ## タスク状態の意味
 
@@ -47,13 +47,15 @@
 
 ## 全体の受入ゲート
 
-1. Firebase SparkへHosting / Rulesを実配備し、Firestore read-backで永続化を確認する。
-2. Cloudflare Workers Freeへの実配備、Worker health、実OrcaRouter構造化応答（確認済み）。
-3. 再発行したOrcaRouter SecretをWorker Secretとして参照し、Secret値を露出しない（確認済み）。
-4. 3項目のテキスト・写真・動画由来JPEGフレームが解析され、名前・連絡先・元動画・音声がAIへ送られず、媒体が解析後に残らないことを確認する。
-5. 性格パラメータ/分析結果をFirebaseから再読込できることを確認する。
-6. 全ペアを実採点してから部屋最適化が走る実E2Eを確認する。
-7. AI失敗時に明示エラーとなり、擬似結果・固定結果・ローカルAI代替へ成功扱いで切り替わらないことを確認する。
-8. 使用サービスがFirebase SparkとCloudflare Workers Freeに限られることを確認する。
+1. [x] Firebase SparkへHosting / Rulesを配備し、Firestore read-backで永続化を確認。
+2. [x] Cloudflare Workers Freeへの配備、Worker health、実OrcaRouter構造化応答を確認。
+3. [x] 再発行したOrcaRouter SecretをWorker Secretとして参照し、Secret値を露出しない。
+4. [x] 許可payload、画像のみの媒体経路、旧payload/raw動画/音声の拒否を確認。
+5. [x] AI分析を含む受付を保存し、AI由来性格パラメータを含む非PIIプロフィールをFirebaseからread-back。
+6. [x] 全ペア採点後の部屋最適化、観測再計算、施設オペレーター確定を公開E2Eで確認。
+7. [x] 自動テストでAI失敗時の明示エラーとno fallbackを確認。
+8. [x] Firebase SparkとCloudflare Workers Freeだけで構成されることを確認。
+
+最終検証はアプリ34/34、Worker 15/15、typecheck、build、`qa-preflight` が成功。公開画面のブラウザfetch `Illegal invocation` はcommit `9078b51` で修正済み。
 
 公開Rulesは認証を省いたハッカソン限定構成である。第三者による匿名書込みと無料枠消費のリスクがあるため、本番運用へ流用しない。

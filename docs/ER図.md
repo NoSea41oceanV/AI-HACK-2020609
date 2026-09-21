@@ -74,7 +74,7 @@ erDiagram
 
 ## 現状実装との差
 
-現在のコードには `demoIntakes`, `demoPets`, `demoMatchingSnapshots`, `demoObservations` 用RepositoryとRulesがあり、AppはAI解析後の分析結果を含む受付をcreateし、プロフィールとマッチングを保存する。Firestore受付はcreate-onlyで、AI処理が先に完了する保存順で構成される。Firebase有効時のOwnerIntakeはlocalStorageへミラーしない。Firebase Hosting / Rules実配備とread-backは未確認である。
+現在のコードには `demoIntakes`, `demoPets`, `demoMatchingSnapshots`, `demoObservations` 用RepositoryとRulesがあり、AppはAI解析後の分析結果を含む受付をcreateし、プロフィールとマッチングを保存する。Firestore受付はcreate-onlyで、AI処理が先に完了する保存順で構成される。Firebase有効時のOwnerIntakeはlocalStorageへミラーしない。Firebase Hosting / Rules配備とread-backは確認済みである。
 
 OwnerFormからWorker分析へのコード接続があり、配備済みWorkerとOrcaRouterの実構造化応答を確認済みである。Worker payloadは性格・遊び方・注意事項と画像だけを許可し、写真または動画由来JPEGフレームを一時data URLとして扱う。`/api/media` は410、raw動画・音声は415で拒否し、永続メディア領域を持たない。
 
@@ -87,4 +87,4 @@ demoMatchingSnapshots/{snapshotId} # 提案/確定
 demoObservations/{observationId}   # サンプル観測
 ~~~
 
-これらはコードに定義されているコレクション名であり、実Firestore上に作成・保存済みであることを示さない。現Rulesは認証を省いたハッカソン限定の公開書込みを許すため、第三者による無料枠消費リスクがあり、本番用のアクセス制御ではない。
+2026-09-22の公開E2Eでは、架空2頭について受付を保存し、非PIIプロフィールを保存・read-backした。さらに全1ペアの1部屋最適化snapshot、当日観測、再計算後の施設オペレーター確定まで確認した。OwnerIntakeのlocalStorage keyはnullだった。現Rulesは認証を省いたハッカソン限定の公開書込みを許すため、第三者による無料枠消費リスクがあり、本番用のアクセス制御ではない。

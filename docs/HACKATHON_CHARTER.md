@@ -19,7 +19,7 @@
 - Firebase Sparkのみ（Firestore、Hosting）。Firebase Cloud Functions / Cloud Storageを使わない。
 - Cloudflare Workers Freeのみ。
 - OrcaRouter Secretは再発行済みのものをCloudflare Worker Secretへだけ設定する。以前チャットに貼られたキーを使わない。
-- Firebase Project ID `pawpair-ai-hack-2026`、Web App設定、Firestore `asia-northeast1`、Sparkプランは設定済み。Firebase CLI本人認証、Hosting / Rules実配備、実Firestore read-backは未確認。
+- Firebase Project ID `pawpair-ai-hack-2026`、Firestore `asia-northeast1`、Spark、Hosting / Rules配備、公開URL `https://pawpair-ai-hack-2026.web.app`、実Firestore read-backを確認済み。
 - Cloudflare Workers Freeの `pet-hotel-agent-api` は `https://pet-hotel-agent-api.nosea41oceanv.workers.dev` へ配備済み。health、Secret参照、media storage無効、OrcaRouter実構造化分析を確認済み。旧`prompt`は400、raw動画・音声は415で拒否する。
 - 外部AIへ送信可能なのは性格・遊び方・注意事項と画像だけである。動画はブラウザで最大2枚のJPEGフレームへ変換し、元動画・動画内音声は送らない。飼い主名・連絡先・音声・request bodyは送らず記録しない。
 
@@ -29,9 +29,9 @@
 - AI/Worker失敗時にローカル推論や固定結果で成功したように振る舞わない。
 - 飼い主名・連絡先・音声を外部AIへ送らない。
 - 解析後も画像・動画を保存する構成にせず、raw動画をWorkerへ送らない。
-- 実配備・実E2E未実施を完了と書かない。
+- 未実施の配備・検証を実績として記録しない。
 - AIが安全を保証する、または人間確認なしに部屋を確定すると主張しない。
 
 ## 受入条件
 
-Worker実リクエストとOrcaRouter実解析は確認済みである。残るFirebase read-back、分析結果保存、媒体破棄、全ペア→最適化、確定までの実E2Eを記録する。テスト/配備ごとに実施日、対象環境、結果を残す。公開匿名書込みはハッカソン限定であり、第三者アクセスによる無料枠消費リスクを受容したデモ構成として扱う。詳細な保留事項は [TASKS.md](../TASKS.md) を参照。
+2026-09-22に、架空2頭のOwnerフォーム登録、Worker / OrcaRouter実解析、Firestore受付保存、非PIIプロフィール保存/read-back、全1ペア採点、1部屋最適化、当日観測保存・再計算、施設オペレーター最終確定まで公開E2Eで確認した。console error/warn 0、OwnerIntake localStorage key null、390 × 844表示も確認済みである。公開匿名書込みはハッカソン限定であり、第三者アクセスによる無料枠消費リスクを受容したデモ構成として扱う。詳細は [TASKS.md](../TASKS.md) を参照。

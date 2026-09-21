@@ -4,7 +4,15 @@
 
 配備済みの本番相当デモで、サンプル入力が `UI → Cloudflare Worker → OrcaRouter実応答 → Firestore構造化保存 → 全ペア計算 → 部屋割り → 確定` まで一貫して反映されることを、画面・Network・Firestoreの証跡で確認する。モック応答、AI失敗時のローカル推定、偽の成功表示は合格証拠にしない。
 
-2026-09-22時点では、Cloudflare Worker `pet-hotel-agent-api` のWorkers Free配備、health、media storage無効、OrcaRouter実構造化分析を確認済みである。旧`prompt`は400、raw動画・音声は415で拒否される。FirebaseはProject / Web App / Spark / `asia-northeast1` まで設定済みだが、CLI本人認証、Hosting / Rules配備、Firestore read-backは未確認であるため、全体E2Eは未完了である。
+## 2026-09-22 実施結果
+
+- Firebase Spark `pawpair-ai-hack-2026` のHosting / Firestore Rulesを配備。公開URLは `https://pawpair-ai-hack-2026.web.app`、Firestoreは `asia-northeast1`。
+- Cloudflare Worker `pet-hotel-agent-api` のhealth、media storage無効、OrcaRouter実構造化分析を確認。旧`prompt`は400、raw動画・音声は415。
+- 架空2頭をOwnerフォームから登録し、Firestore受付保存、非PIIプロフィール保存/read-back、全1ペア採点、1部屋最適化、当日観測保存と全ペア再計算、施設オペレーター最終確定まで成功。
+- ブラウザconsole error/warnは0件。OwnerIntakeのlocalStorage keyはnull。390 × 844のモバイル表示も成功。
+- アプリテスト34/34、Worker 15/15、typecheck、build、`qa-preflight` が成功。ブラウザfetchの `Illegal invocation` はcommit `9078b51` で修正済み。
+
+以下は再配備・変更時にも使う回帰検証計画として残す。
 
 同時に次を満たすことを確認する。
 
