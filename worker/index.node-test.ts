@@ -37,6 +37,12 @@ const successfulFetch: typeof fetch = async () => Response.json({
   choices: [{ message: { content: JSON.stringify(validAnalysis) } }],
 });
 
+const validProfile = {
+  personality: "穏やか",
+  playStyle: "追いかけっこ",
+  precautions: "大きな音には慎重",
+};
+
 test("health reports that media persistence is disabled", async () => {
   const response = await handleRequest(new Request("https://worker.test/health"), {}, context);
   assert.equal(response.status, 200);
@@ -101,9 +107,21 @@ test("sends only approved profile fields and keeps the secret in Authorization",
   assert.equal(((await response.json()) as any).analysis.summary, "calm");
 });
 
-test("retains prompt compatibility for text-only analysis", async () => {
+test("rejects legacy prompt before calling OrcaRouter", async () => {
+  let called = false;
+  const fakeFetch: typeof fetch = async () => { called = true; return successfulFetch("https://unused"); };
   const response = await handleRequest(
-    analyzeRequest({ prompt: "初対面の犬には慎重ですが、慣れると追いかけっこをします。" }),
+    analyzeRequest({ prompt: "初対面の犬には慎重です。" }),
+    { ORCAROUTER_API_KEY: "test-secret" }, context, fakeFetch,
+  );
+  assert.equal(response.status, 400);
+  assert.equal(((await response.json()) as any).error.code, "unknown_field");
+  assert.equal(called, false);
+});
+
+test("accepts empty precautions with required profile fields", async () => {
+  const response = await handleRequest(
+    analyzeRequest({ profile: { personality: "穏やか", playStyle: "ボール遊び", precautions: "" } }),
     { ORCAROUTER_API_KEY: "test-secret" }, context, successfulFetch,
   );
   assert.equal(response.status, 200);
@@ -114,7 +132,7 @@ test("rejects owner and contact fields before calling OrcaRouter", async () => {
   let called = false;
   const fakeFetch: typeof fetch = async () => { called = true; return successfulFetch("https://unused"); };
   const response = await handleRequest(
-    analyzeRequest({ prompt: "穏やかです", ownerName: "送信禁止" }),
+    analyzeRequest({ profile: validProfile, ownerName: "送信禁止" }),
     { ORCAROUTER_API_KEY: "test-secret" }, context, fakeFetch,
   );
   assert.equal(response.status, 400);
@@ -122,25 +140,47 @@ test("rejects owner and contact fields before calling OrcaRouter", async () => {
   assert.equal(called, false);
 });
 
-test("rejects contact details embedded in compatibility prompt", async () => {
-  const response = await handleRequest(
-    analyzeRequest({ prompt: "穏やか。電話: 090-1234-5678" }),
-    { ORCAROUTER_API_KEY: "test-secret" }, context, successfulFetch,
-  );
-  assert.equal(response.status, 400);
-  assert.equal(((await response.json()) as any).error.code, "data_minimization_violation");
+test("rejects contact and audio text in every profile field", async () => {
+  for (const [key, value] of [
+    ["personality", "穏やか。電話: 090-1234-5678"],
+    ["playStyle", "音声を使った遊び"],
+    ["precautions", "owner: someone"],
+  ] as const) {
+    const response = await handleRequest(
+      analyzeRequest({ profile: { ...validProfile, [key]: value } }),
+      { ORCAROUTER_API_KEY: "test-secret" }, context, successfulFetch,
+    );
+    assert.equal(response.status, 400);
+    assert.equal(((await response.json()) as any).error.code, "data_minimization_violation");
+  }
+});
+
+test("requires non-empty personality and playStyle and enforces profile keys and lengths", async () => {
+  const cases = [
+    { profile: { playStyle: "追いかけっこ", precautions: "" } },
+    { profile: { personality: "穏やか", playStyle: "   ", precautions: "" } },
+    { profile: { ...validProfile, petName: "送信禁止" } },
+    { profile: { ...validProfile, personality: "a".repeat(1_001) } },
+  ];
+  for (const body of cases) {
+    let called = false;
+    const fakeFetch: typeof fetch = async () => { called = true; return successfulFetch("https://unused"); };
+    const response = await handleRequest(analyzeRequest(body), { ORCAROUTER_API_KEY: "test-secret" }, context, fakeFetch);
+    assert.equal(response.status, 400);
+    assert.equal(called, false);
+  }
 });
 
 test("rejects audio and legacy mediaId references", async () => {
   const audio = await handleRequest(
-    analyzeRequest({ prompt: "穏やか", media: { type: "audio", dataUrl: "data:audio/mpeg;base64,SUQz" } }),
+    analyzeRequest({ profile: validProfile, media: { type: "audio", dataUrl: "data:audio/mpeg;base64,SUQz" } }),
     { ORCAROUTER_API_KEY: "test-secret" }, context, successfulFetch,
   );
   assert.equal(audio.status, 415);
   assert.equal(((await audio.json()) as any).error.code, "audio_not_supported");
 
   const mediaId = await handleRequest(
-    analyzeRequest({ prompt: "穏やか", media: { type: "image", mediaId: "stored-object" } }),
+    analyzeRequest({ profile: validProfile, media: { type: "image", mediaId: "stored-object" } }),
     { ORCAROUTER_API_KEY: "test-secret" }, context, successfulFetch,
   );
   assert.equal(mediaId.status, 400);
@@ -155,14 +195,14 @@ test("rejects raw video data URLs and URLs before calling OrcaRouter", async () 
   };
 
   const rawVideoData = await handleRequest(
-    analyzeRequest({ prompt: "穏やか", media: { type: "video", dataUrl: "data:video/mp4;base64,AAAAAGZ0eXA=" } }),
+    analyzeRequest({ profile: validProfile, media: { type: "video", dataUrl: "data:video/mp4;base64,AAAAAGZ0eXA=" } }),
     { ORCAROUTER_API_KEY: "test-secret" }, context, fakeFetch,
   );
   assert.equal(rawVideoData.status, 415);
   assert.equal(((await rawVideoData.json()) as any).error.code, "video_not_supported");
 
   const rawVideoUrl = await handleRequest(
-    analyzeRequest({ prompt: "穏やか", media: { type: "video", url: "https://cdn.example/pet.mp4" } }),
+    analyzeRequest({ profile: validProfile, media: { type: "video", url: "https://cdn.example/pet.mp4" } }),
     { ORCAROUTER_API_KEY: "test-secret" }, context, fakeFetch,
   );
   assert.equal(rawVideoUrl.status, 415);
@@ -172,14 +212,14 @@ test("rejects raw video data URLs and URLs before calling OrcaRouter", async () 
 
 test("rejects forged media content and private URLs", async () => {
   const forged = await handleRequest(
-    analyzeRequest({ prompt: "穏やか", media: { type: "image", dataUrl: "data:image/jpeg;base64,SGVsbG8=" } }),
+    analyzeRequest({ profile: validProfile, media: { type: "image", dataUrl: "data:image/jpeg;base64,SGVsbG8=" } }),
     { ORCAROUTER_API_KEY: "test-secret" }, context, successfulFetch,
   );
   assert.equal(forged.status, 415);
   assert.equal(((await forged.json()) as any).error.code, "media_signature_mismatch");
 
   const privateUrl = await handleRequest(
-    analyzeRequest({ prompt: "穏やか", media: { type: "image", url: "https://127.0.0.1/pet.jpg" } }),
+    analyzeRequest({ profile: validProfile, media: { type: "image", url: "https://127.0.0.1/pet.jpg" } }),
     { ORCAROUTER_API_KEY: "test-secret" }, context, successfulFetch,
   );
   assert.equal(privateUrl.status, 400);
@@ -188,7 +228,7 @@ test("rejects forged media content and private URLs", async () => {
 
 test("rejects models outside the explicit allowlist", async () => {
   const response = await handleRequest(
-    analyzeRequest({ model: "expensive/unknown", prompt: "穏やか" }),
+    analyzeRequest({ model: "expensive/unknown", profile: validProfile }),
     { ORCAROUTER_API_KEY: "test-secret" }, context, successfulFetch,
   );
   assert.equal(response.status, 400);
@@ -198,7 +238,7 @@ test("rejects models outside the explicit allowlist", async () => {
 test("rejects invalid structured model output", async () => {
   const fakeFetch: typeof fetch = async () => Response.json({ choices: [{ message: { content: '{"summary":"missing fields"}' } }] });
   const response = await handleRequest(
-    analyzeRequest({ prompt: "穏やか" }),
+    analyzeRequest({ profile: validProfile }),
     { ORCAROUTER_API_KEY: "test-secret" }, context, fakeFetch,
   );
   assert.equal(response.status, 502);

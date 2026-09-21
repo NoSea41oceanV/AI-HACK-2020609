@@ -1,13 +1,13 @@
 # PAWPAIR AI Worker
 
-Cloudflare Workers Free を想定した、OrcaRouter とブラウザの間の小さなプロキシです。API キーをブラウザへ配らず、ペットの性格・遊び方・注意事項と、任意の写真・短い動画だけを分析へ送ります。飼い主名・連絡先・音声は拒否します。
+Cloudflare Workers Free を想定した、OrcaRouter とブラウザの間の小さなプロキシです。API キーをブラウザへ配らず、ペットの性格・遊び方・注意事項と、任意の写真・動画からブラウザ内で抽出した静止画像だけを分析へ送ります。飼い主名・連絡先・音声・動画そのものは拒否します。
 
-写真・動画は `/api/analyze` のリクエスト中だけ扱います。Worker、R2、KV、Firestoreへの保存は行わず、OrcaRouterの構造化分析結果だけを応答します。
+写真・動画フレーム画像は `/api/analyze` のリクエスト中だけ扱います。Worker、R2、KV、Firestoreへの保存は行わず、OrcaRouterの構造化分析結果だけを応答します。
 
 ## API
 
 - `GET /health`: OrcaRouter Secret の設定有無を返します。互換フィールド `mediaStorageConfigured` は常に `false` です。
-- `POST /api/analyze`: 性格・遊び方・注意事項と、任意の画像・動画を許可済みモデルへ転送します。
+- `POST /api/analyze`: 性格・遊び方・注意事項と、任意の写真・動画から抽出した静止画像を許可済みモデルへ転送します。
 - `POST /api/media`: 永続保存を防ぐため `410 media_storage_disabled` を返します。
 
 推奨リクエスト:
@@ -26,7 +26,7 @@ Cloudflare Workers Free を想定した、OrcaRouter とブラウザの間の小
 }
 ```
 
-既存クライアントとの互換用に `prompt` も受け付けますが、その内容もペットの性格・遊び方・注意事項だけにしてください。メディアは `dataUrl` または公開HTTPS `url` で指定します。動画は1件、全メディアは0〜3件です。`mediaId` は利用できません。
+`profile` は `personality` と `playStyle` が必須かつ空文字不可、`precautions` は空文字を許可し、各項目は1000文字以下です。3項目以外のキーや旧 `prompt` は拒否します。メディアは画像の `dataUrl` または公開HTTPS `url` で指定し、0〜3件です。動画ファイルや動画URL、`mediaId` は利用できません。Owner UIで動画を選んだ場合は、ブラウザ内で音声を含まないJPEGフレームを最大2枚抽出して送信します。
 
 成功時の `analysis.matchingProfile` は次の形式です。
 
@@ -59,13 +59,13 @@ Cloudflare Workers Free を想定した、OrcaRouter とブラウザの間の小
 ## 安全制限
 
 - 画像: 1ファイル 5 MiB、JPEG/PNG/WebPのみ
-- 動画: 1ファイル 20 MiB、MP4/WebM/MOVのみ
+- Owner UIの動画選択: 1ファイル 20 MiB、MP4/WebM/MOVのみ。ブラウザ内で静止画へ変換し、動画自体はWorkerへ送信しない
 - 分析JSON全体: 28 MiB
 - 1分あたり: 分析10回（IP単位・同一isolate内の簡易制限）
 - Content-Typeだけでなく先頭シグネチャも確認
 - モデルallowlist、CORS完全一致、公開HTTPS URL制限、上流25秒タイムアウト
 - 上流応答: 最大1 MiB
-- APIキー、入力テキスト、写真・動画はログへ出力しない
+- APIキー、入力テキスト、写真・動画フレーム画像はログへ出力しない
 
 Workerのメモリ内レート制限は絶対的な課金防止ではありません。CloudflareとOrcaRouter双方の利用量を確認し、デモ終了後はWorkerを無効化してください。
 

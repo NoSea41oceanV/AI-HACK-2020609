@@ -6,7 +6,7 @@ const MAX_BODY_BYTES = 28 * 1024 * 1024;
 const MAX_UPSTREAM_BYTES = 1024 * 1024;
 const ALLOWED_IMAGES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const ALLOWED_PLAY_STYLES = new Set(["chase", "wrestle", "tug", "fetch", "gentle", "solo"]);
-const REQUEST_KEYS = new Set(["model", "prompt", "profile", "media"]);
+const REQUEST_KEYS = new Set(["model", "profile", "media"]);
 const PROFILE_KEYS = new Set(["personality", "playStyle", "precautions"]);
 const MEDIA_KEYS = new Set(["type", "url", "dataUrl"]);
 const PRIVATE_KEY = /(?:owner|guardian|customer|contact|phone|tel|email|mail|address|name|audio|voice|飼い主|利用者|氏名|名前|連絡|電話|住所|メール|音声|鳴き声)/i;
@@ -14,6 +14,7 @@ const PRIVATE_TEXT = [
   /[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/,
   /(?:\+?81[-\s]?)?(?:0\d{1,4}[-\s]?\d{1,4}[-\s]?\d{3,4})/,
   /(?:飼い主|利用者|氏名|名前|連絡先|電話|住所|メール|owner|guardian|contact|phone|e-?mail)\s*[:：]/i,
+  /(?:音声|鳴き声|環境音|\baudio\b|\bvoice\b)/i,
 ];
 
 export interface Env {
@@ -27,7 +28,7 @@ export interface Env {
 interface ExecutionContextLike { waitUntil(promise: Promise<unknown>): void }
 interface MediaInput { type?: string; url?: string; dataUrl?: string }
 interface PetProfile { personality?: string; playStyle?: string; precautions?: string }
-interface AnalyzeBody { model?: string; prompt?: string; profile?: PetProfile; media?: MediaInput | MediaInput[] }
+interface AnalyzeBody { model?: string; profile?: PetProfile; media?: MediaInput | MediaInput[] }
 
 class HttpError extends Error {
   readonly status: number;
@@ -178,37 +179,35 @@ function mediaContent(input: unknown): Record<string, unknown> {
 }
 
 function profileText(body: AnalyzeBody): string {
-  const parts: string[] = [];
-  if (body.profile !== undefined) {
-    if (!body.profile || typeof body.profile !== "object" || Array.isArray(body.profile)) throw new HttpError(400, "invalid_profile", "profileはオブジェクトで指定してください。");
-    assertKeys(body.profile as Record<string, unknown>, PROFILE_KEYS);
-    const labels: Record<keyof PetProfile, string> = { personality: "性格", playStyle: "遊び方", precautions: "注意事項" };
-    for (const key of Object.keys(labels) as Array<keyof PetProfile>) {
-      const value = body.profile[key];
-      if (value === undefined) continue;
-      if (typeof value !== "string") throw new HttpError(400, "invalid_profile", `${labels[key]}は文字列で指定してください。`);
-      if (value.trim()) {
-        assertPublicPetText(value);
-        parts.push(`${labels[key]}: ${value.trim().slice(0, 1_000)}`);
-      }
-    }
+  if (!body.profile || typeof body.profile !== "object" || Array.isArray(body.profile)) {
+    throw new HttpError(400, "profile_required", "profileを指定してください。");
   }
-  // Existing client compatibility. This is treated only as approved pet data.
-  if (body.prompt !== undefined) {
-    if (typeof body.prompt !== "string") throw new HttpError(400, "invalid_prompt", "promptは文字列で指定してください。");
-    if (body.prompt.trim()) {
-      assertPublicPetText(body.prompt);
-      parts.push(`ペット情報: ${body.prompt.trim().slice(0, 2_000)}`);
-    }
+  const profile = body.profile as Record<string, unknown>;
+  assertKeys(profile, PROFILE_KEYS);
+  const labels = { personality: "性格", playStyle: "遊び方", precautions: "注意事項" } as const;
+  const values: Record<keyof typeof labels, string> = { personality: "", playStyle: "", precautions: "" };
+  for (const key of Object.keys(labels) as Array<keyof typeof labels>) {
+    const value = profile[key];
+    if (value === undefined && key === "precautions") continue;
+    if (typeof value !== "string") throw new HttpError(400, "invalid_profile", `${labels[key]}は文字列で指定してください。`);
+    if (value.length > 1_000) throw new HttpError(400, "profile_too_long", `${labels[key]}は1000文字以下にしてください。`);
+    assertPublicPetText(value);
+    values[key] = value.trim();
   }
-  if (!parts.length) throw new HttpError(400, "profile_required", "性格・遊び方・注意事項のいずれかを入力してください。");
-  return parts.join("\n");
+  if (!values.personality || !values.playStyle) {
+    throw new HttpError(400, "profile_required", "性格と遊び方を入力してください。");
+  }
+  return [
+    `性格: ${values.personality}`,
+    `遊び方: ${values.playStyle}`,
+    `注意事項: ${values.precautions || "記載なし"}`,
+  ].join("\n");
 }
 
 function systemPrompt(): string {
   return [
     "あなたはペットホテルの相性マッチングに使う性格傾向の構造化補助AIです。",
-    "入力はペットの性格・遊び方・注意事項と任意の写真または動画から抽出済みの静止画像だけです。飼い主の特定や個人情報の推測をせず、音声を評価しないでください。",
+    "入力はペットの性格・遊び方・注意事項、任意の写真、ブラウザ内で動画から抽出した音声を含まない静止画像だけです。飼い主の特定や個人情報の推測をせず、音声を評価しないでください。",
     "医療診断や性格の断定はせず、根拠が弱い場合はconfidenceを下げ、riskFlagsへ不確実性を明記してください。",
     "JSONのみを返し、次のキーを必ず含めてください:",
     'summary:string, observations:string[], personalityTraits:{label:string,evidence:string,confidence:number}[], compatibilitySignals:string[], riskFlags:string[], confidence:number, matchingProfile:{energyLevel:number,sociability:number,anxietyLevel:number,assertiveness:number,resourceGuarding:number,playStyles:string[]}',

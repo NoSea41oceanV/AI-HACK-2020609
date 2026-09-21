@@ -8,9 +8,14 @@ export interface WorkerHealth {
   mediaStorageConfigured: boolean;
 }
 export interface WorkerMediaInput {
-  type: "image" | "video";
+  type: "image";
   url?: string;
   dataUrl?: string;
+}
+export interface WorkerAnalyzeProfile {
+  personality: string;
+  playStyle: string;
+  precautions: string;
 }
 export interface WorkerAnalyzeResult {
   ok: true;
@@ -187,12 +192,29 @@ const extractSilentVideoFrames: VideoFrameExtractor = async (file) => {
   }
 };
 
-const ownerAnalysisPrompt = (input: Pick<OwnerAnalysisInput, "personality" | "playStyle" | "concerns">): string => [
-  "以下は飼い主が入力したペットの情報です。記載内容と添付メディアだけを根拠に分析してください。",
-  `性格: ${input.personality.trim()}`,
-  `好きな遊び・遊び方: ${input.playStyle.trim()}`,
-  `苦手なこと・注意点: ${input.concerns.trim() || "記載なし"}`,
-].join("\n");
+const sanitizeAnalyzeProfile = (profile: WorkerAnalyzeProfile): WorkerAnalyzeProfile => {
+  const values = {
+    personality: profile?.personality,
+    playStyle: profile?.playStyle,
+    precautions: profile?.precautions,
+  };
+  for (const [key, value] of Object.entries(values)) {
+    if (typeof value !== "string") {
+      throw new WorkerClientError("性格・遊び方・注意事項は文字列で入力してください。", "invalid_profile", 400);
+    }
+    if (value.length > 1_000) {
+      throw new WorkerClientError(`${key}は1000文字以下にしてください。`, "profile_too_long", 400);
+    }
+  }
+  if (!values.personality.trim() || !values.playStyle.trim()) {
+    throw new WorkerClientError("性格と好きな遊び・遊び方を入力してください。", "owner_profile_required", 400);
+  }
+  return {
+    personality: values.personality.trim(),
+    playStyle: values.playStyle.trim(),
+    precautions: values.precautions.trim(),
+  };
+};
 
 const parseMatchingProfile = (value: unknown): IntakeMatchingProfile => {
   if (!isRecord(value) || !isStrictScale(value.energyLevel) || !isStrictScale(value.sociability) ||
@@ -298,15 +320,16 @@ export class AIWorkerClient {
     return value as unknown as WorkerHealth;
   }
 
-  async analyze(input: { prompt: string; media?: WorkerMediaInput | WorkerMediaInput[]; model?: string }): Promise<WorkerAnalyzeResult> {
+  async analyze(input: { profile: WorkerAnalyzeProfile; media?: WorkerMediaInput | WorkerMediaInput[]; model?: string }): Promise<WorkerAnalyzeResult> {
     const media = input.media ? (Array.isArray(input.media) ? input.media : [input.media]) : [];
-    if (media.some((item) => !item || !["image", "video"].includes(String(item.type)))) {
-      throw new WorkerClientError("音声には対応していません。画像または動画を指定してください。", "audio_not_supported", 415);
+    if (media.some((item) => !item || item.type !== "image")) {
+      throw new WorkerClientError("写真または動画から抽出した静止画像だけを指定してください。", "unsupported_media_type", 415);
     }
+    const profile = sanitizeAnalyzeProfile(input.profile);
     const value = await this.request("/api/analyze", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ prompt: input.prompt, media, ...(input.model ? { model: input.model } : {}) }),
+      body: JSON.stringify({ profile, media, ...(input.model ? { model: input.model } : {}) }),
     });
     if (!isRecord(value) || value.ok !== true || typeof value.requestId !== "string" || typeof value.model !== "string") {
       throw new WorkerClientError("AI Workerの分析応答形式が不正です。", "invalid_response");
@@ -315,9 +338,6 @@ export class AIWorkerClient {
   }
 
   async analyzeOwnerRegistration(input: OwnerAnalysisInput): Promise<WorkerAnalyzeResult> {
-    if (!input.personality.trim() || !input.playStyle.trim()) {
-      throw new WorkerClientError("性格と好きな遊び・遊び方を入力してください。", "owner_profile_required", 400);
-    }
     validateOwnerAnalysisMedia(input);
     const imageFiles: Blob[] = input.photo ? [input.photo] : [];
     if (input.video) imageFiles.push(...await this.videoFrameExtractor(input.video));
@@ -328,7 +348,11 @@ export class AIWorkerClient {
     const media = await Promise.all(imageFiles.map(async (file) => ({ type: "image" as const, dataUrl: await toDataUrl(file) })));
 
     return this.analyze({
-      prompt: ownerAnalysisPrompt(input),
+      profile: {
+        personality: input.personality,
+        playStyle: input.playStyle,
+        precautions: input.concerns,
+      },
       media,
     });
   }

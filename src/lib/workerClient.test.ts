@@ -60,10 +60,13 @@ describe("AIWorkerClient", () => {
     await client.analyzeOwnerRegistration(untrustedInput);
 
     const bodyText = String(fetchMock.mock.calls[0][1]?.body);
-    const body = JSON.parse(bodyText) as { prompt: string; media: Array<{ type: string; dataUrl: string }> };
-    expect(body.prompt).toContain("性格: 慎重");
-    expect(body.prompt).toContain("好きな遊び・遊び方: 追いかけっこ");
-    expect(body.prompt).toContain("苦手なこと・注意点: 大きな音が苦手");
+    const body = JSON.parse(bodyText) as { profile: Record<string, string>; media: Array<{ type: string; dataUrl: string }> };
+    expect(body.profile).toEqual({
+      personality: "慎重",
+      playStyle: "追いかけっこ",
+      precautions: "大きな音が苦手",
+    });
+    expect(Object.keys(body.profile)).toEqual(["personality", "playStyle", "precautions"]);
     expect(body.media).toEqual([{ type: "image", dataUrl: "data:image/jpeg;base64,/9j/" }]);
     expect(bodyText).not.toContain("送信禁止の飼い主");
     expect(bodyText).not.toContain("secret@example.test");
@@ -115,11 +118,47 @@ describe("AIWorkerClient", () => {
       ok: true, requestId: "request-1", model: "demo-model", analysis: validAnalysis, usage: null,
     }), { status: 200 }));
     const client = new AIWorkerClient("https://worker.example/", { fetchImpl: fetchMock });
-    await expect(client.analyze({ prompt: "フォームを分析して" })).resolves.toMatchObject({
+    await expect(client.analyze({
+      profile: { personality: "慎重", playStyle: "穏やかな遊び", precautions: "" },
+    })).resolves.toMatchObject({
       requestId: "request-1", analysis: { matchingProfile: { energyLevel: 2, hardBlockedPetIds: [] } },
     });
-    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as { media: unknown[] };
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as { profile: unknown; media: unknown[] };
+    expect(body.profile).toEqual({ personality: "慎重", playStyle: "穏やかな遊び", precautions: "" });
     expect(body.media).toEqual([]);
+  });
+
+  it("sanitizes profile keys and rejects invalid profile or raw video before a request", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      ok: true, requestId: "request-safe", model: "demo-model", analysis: validAnalysis, usage: null,
+    }), { status: 200 }));
+    const client = new AIWorkerClient("https://worker.example", { fetchImpl: fetchMock });
+    await client.analyze({
+      profile: {
+        personality: "  穏やか  ",
+        playStyle: "  ボール遊び  ",
+        precautions: "  特になし  ",
+        petName: "送信禁止",
+      } as never,
+    });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body)).profile).toEqual({
+      personality: "穏やか",
+      playStyle: "ボール遊び",
+      precautions: "特になし",
+    });
+
+    fetchMock.mockClear();
+    await expect(client.analyze({
+      profile: { personality: "穏やか", playStyle: "遊ぶ", precautions: "" },
+      media: { type: "video", dataUrl: "data:video/mp4;base64,AAAA" } as never,
+    })).rejects.toMatchObject({ code: "unsupported_media_type", status: 415 });
+    await expect(client.analyze({
+      profile: { personality: " ", playStyle: "遊ぶ", precautions: "" },
+    })).rejects.toMatchObject({ code: "owner_profile_required", status: 400 });
+    await expect(client.analyze({
+      profile: { personality: "a".repeat(1_001), playStyle: "遊ぶ", precautions: "" },
+    })).rejects.toMatchObject({ code: "profile_too_long", status: 400 });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("propagates Worker failures instead of returning a successful analysis", async () => {

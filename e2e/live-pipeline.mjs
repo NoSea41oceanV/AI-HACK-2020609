@@ -115,16 +115,22 @@ try {
   assert(health.mediaStorageConfigured === false, "R2等のmedia storageが有効です。R2なし受入条件に違反します");
   console.log("[PASS] worker health + OrcaRouter configured");
 
-  const prompt = process.env.QA_SAFE_PROMPT?.trim() || "ほかの犬にはゆっくり近づき、短い追いかけっこを好みます。食事中は一頭で落ち着ける場所を選びます。";
-  assert(prompt.length > 0 && prompt.length <= 2_000, "QA_SAFE_PROMPTは1..2000文字にしてください");
+  const profile = {
+    personality: process.env.QA_SAFE_PERSONALITY?.trim() || "ほかの犬にはゆっくり近づきます。",
+    playStyle: process.env.QA_SAFE_PLAY_STYLE?.trim() || "短い追いかけっこを好みます。",
+    precautions: process.env.QA_SAFE_PRECAUTIONS?.trim() || "食事中は一頭で落ち着ける場所を選びます。",
+  };
+  assert(profile.personality.length > 0 && profile.personality.length <= 1_000, "QA_SAFE_PERSONALITYは1..1000文字にしてください");
+  assert(profile.playStyle.length > 0 && profile.playStyle.length <= 1_000, "QA_SAFE_PLAY_STYLEは1..1000文字にしてください");
+  assert(profile.precautions.length <= 1_000, "QA_SAFE_PRECAUTIONSは1000文字以下にしてください");
   const forbiddenPii = /(?:@|\b0\d{1,4}-?\d{1,4}-?\d{3,4}\b|飼い主|電話|メール|住所|音声)/i;
-  assert(!forbiddenPii.test(prompt), "QA_SAFE_PROMPTにPII/音声を示す文字列があります。非PIIの行動記述だけを使用してください");
+  assert(Object.values(profile).every((value) => !forbiddenPii.test(value)), "QA安全profileにPII/音声を示す文字列があります。非PIIの行動記述だけを使用してください");
   const media = await fixtureMedia();
   const analyzeUrl = new URL("/api/analyze", `${workerUrl}/`);
   const analysis = await fetchJson(analyzeUrl, {
     method: "POST",
     headers: { ...workerHeaders, "content-type": "application/json", "x-request-id": `qa-${crypto.randomUUID()}` },
-    body: JSON.stringify({ prompt, ...(media.length ? { media } : {}) }),
+    body: JSON.stringify({ profile, ...(media.length ? { media } : {}) }),
   });
   validateAnalysisResponse(analysis);
   console.log(`[PASS] real AI structured analysis (${media.length ? `${media.length} explicit fixture(s)` : "text only"})`);
