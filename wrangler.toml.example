@@ -1,0 +1,13 @@
+name = "pawpair-media-worker"
+main = "worker/index.ts"
+compatibility_date = "2026-09-01"
+workers_dev = true
+
+[vars]
+ORCA_ROUTER_BASE_URL = "https://api.orcarouter.ai/v1"
+ORCA_ALLOWED_MODELS = "google/gemini-2.5-flash"
+ORCA_ROUTER_TIMEOUT_MS = "25000"
+CORS_ORIGINS = "http://localhost:5173"
+
+# APIキーはここに書かず、次のコマンドで secret として登録します。
+# npx wrangler secret put ORCA_ROUTER_API_KEY

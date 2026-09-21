@@ -1,0 +1,11 @@
+{
+  "name": "pawpair-media-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --experimental-strip-types --test index.node-test.ts"
+  },
+  "engines": {
+    "node": ">=22.6"
+  }
+}
