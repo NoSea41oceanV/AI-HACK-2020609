@@ -1,0 +1,25 @@
+# Local environment values; examples must contain dummy values only.
+.env
+.env.*
+!.env.example
+
+# Reserved secret/credential locations and private key bundles.
+secrets/
+credentials/
+*.key
+*.p12
+*.pfx
+
+# Reserved root-level generated output, cache, and temporary directories.
+# These conventions do not select a language or framework.
+/build/
+/dist/
+/coverage/
+/.cache/
+/tmp/
+*.log
+
+# OS-generated metadata.
+.DS_Store
+Thumbs.db
+Desktop.ini
