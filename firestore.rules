@@ -1,0 +1,131 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function validPet(data) {
+      return data.keys().hasOnly(['name', 'breed', 'ageYears', 'weightKg', 'energyLevel', 'sociability', 'anxietyLevel', 'assertiveness', 'resourceGuarding', 'playStyles', 'hardBlockedPetIds', 'notes', 'photoUrl', 'updatedAt'])
+        && data.name is string && data.name.size() > 0 && data.name.size() <= 40
+        && data.ageYears is number && data.ageYears >= 0 && data.ageYears <= 40
+        && data.weightKg is number && data.weightKg > 0 && data.weightKg <= 150
+        && data.energyLevel is int && data.energyLevel >= 1 && data.energyLevel <= 5
+        && data.sociability is int && data.sociability >= 1 && data.sociability <= 5
+        && data.anxietyLevel is int && data.anxietyLevel >= 1 && data.anxietyLevel <= 5
+        && data.assertiveness is int && data.assertiveness >= 1 && data.assertiveness <= 5
+        && data.resourceGuarding is int && data.resourceGuarding >= 0 && data.resourceGuarding <= 5
+        && data.playStyles is list && data.playStyles.size() <= 6
+        && data.playStyles.hasOnly(['chase', 'wrestle', 'tug', 'fetch', 'gentle', 'solo'])
+        && (!('breed' in data) || (data.breed is string && data.breed.size() <= 80))
+        && (!('hardBlockedPetIds' in data) || (data.hardBlockedPetIds is list && data.hardBlockedPetIds.size() <= 50))
+        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 500))
+        && (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 1000))
+        && data.updatedAt is string && data.updatedAt.size() >= 20 && data.updatedAt.size() <= 40;
+    }
+
+    function validIntakeMedia(item, expectedKind, maxBytes) {
+      return item.keys().hasOnly(['kind', 'fileName', 'contentType', 'sizeBytes', 'mediaId', 'status'])
+        && item.kind == expectedKind && item.fileName is string && item.fileName.size() > 0 && item.fileName.size() <= 120
+        && item.contentType is string && item.contentType.size() <= 80
+        && item.contentType.matches(expectedKind == 'image' ? '^image/[a-zA-Z0-9.+-]+$' : '^video/[a-zA-Z0-9.+-]+$')
+        && item.sizeBytes is int && item.sizeBytes >= 0 && item.sizeBytes <= maxBytes
+        && item.status in ['selected', 'uploaded', 'failed']
+        && (!('mediaId' in item) || (item.mediaId is string && item.mediaId.size() <= 200));
+    }
+    function validIntakeMediaMap(media) {
+      return media.keys().hasOnly(['photo', 'video'])
+        && (!('photo' in media) || validIntakeMedia(media.photo, 'image', 10 * 1024 * 1024))
+        && (!('video' in media) || validIntakeMedia(media.video, 'video', 100 * 1024 * 1024));
+    }
+    function validMatchingProfile(profile) {
+      return profile.keys().hasOnly(['energyLevel', 'sociability', 'anxietyLevel', 'assertiveness', 'resourceGuarding', 'playStyles', 'hardBlockedPetIds'])
+        && profile.energyLevel is int && profile.energyLevel >= 1 && profile.energyLevel <= 5
+        && profile.sociability is int && profile.sociability >= 1 && profile.sociability <= 5
+        && profile.anxietyLevel is int && profile.anxietyLevel >= 1 && profile.anxietyLevel <= 5
+        && profile.assertiveness is int && profile.assertiveness >= 1 && profile.assertiveness <= 5
+        && profile.resourceGuarding is int && profile.resourceGuarding >= 0 && profile.resourceGuarding <= 5
+        && profile.playStyles is list && profile.playStyles.size() <= 6
+        && profile.playStyles.hasOnly(['chase', 'wrestle', 'tug', 'fetch', 'gentle', 'solo'])
+        && profile.hardBlockedPetIds is list && profile.hardBlockedPetIds.size() <= 50;
+    }
+    function validAiAnalysis(ai) {
+      return ai.keys().hasOnly(['summary', 'observations', 'personalityTraits', 'compatibilitySignals', 'riskFlags', 'confidence', 'matchingProfile'])
+        && ai.summary is string && ai.summary.size() <= 2000
+        && ai.observations is list && ai.observations.size() <= 50
+        && ai.personalityTraits is list && ai.personalityTraits.size() <= 30
+        && ai.compatibilitySignals is list && ai.compatibilitySignals.size() <= 50
+        && ai.riskFlags is list && ai.riskFlags.size() <= 50
+        && ai.confidence is number && ai.confidence >= 0 && ai.confidence <= 1
+        && ai.matchingProfile is map && validMatchingProfile(ai.matchingProfile);
+    }
+    function validIntake(data, intakeId) {
+      return data.keys().hasOnly(['id', 'inviteId', 'owner', 'pet', 'media', 'aiAnalysis', 'matchingProfile', 'status', 'submittedAt'])
+        && data.id == intakeId && data.id.size() > 0 && data.id.size() <= 100
+        && data.inviteId is string && data.inviteId.size() > 0 && data.inviteId.size() <= 100
+        && data.owner is map && data.owner.keys().hasOnly(['name', 'contact'])
+        && data.owner.name is string && data.owner.name.size() > 0 && data.owner.name.size() <= 80
+        && data.owner.contact is string && data.owner.contact.size() > 0 && data.owner.contact.size() <= 200
+        && data.pet is map && data.pet.keys().hasOnly(['name', 'breed', 'ageYears', 'weightKg', 'sex', 'personality', 'playStyle', 'concerns'])
+        && data.pet.name is string && data.pet.name.size() > 0 && data.pet.name.size() <= 40
+        && data.pet.breed is string && data.pet.breed.size() > 0 && data.pet.breed.size() <= 80
+        && data.pet.ageYears is number && data.pet.ageYears >= 0 && data.pet.ageYears <= 30
+        && data.pet.weightKg is number && data.pet.weightKg >= 0.1 && data.pet.weightKg <= 100
+        && data.pet.sex in ['male', 'female', 'unknown']
+        && data.pet.personality is string && data.pet.personality.size() > 0 && data.pet.personality.size() <= 1000
+        && data.pet.playStyle is string && data.pet.playStyle.size() > 0 && data.pet.playStyle.size() <= 1000
+        && data.pet.concerns is string && data.pet.concerns.size() <= 1000
+        && data.media is map && validIntakeMediaMap(data.media)
+        && (!('aiAnalysis' in data) || (data.aiAnalysis is map && validAiAnalysis(data.aiAnalysis)))
+        && (!('matchingProfile' in data) || (data.matchingProfile is map && validMatchingProfile(data.matchingProfile)))
+        && data.status in ['submitted', 'ready']
+        && data.submittedAt is string && data.submittedAt.size() >= 20 && data.submittedAt.size() <= 40;
+    }
+
+    function validMatchingSnapshot(data, snapshotId) {
+      return data.keys().hasOnly(['id', 'status', 'petIds', 'pairResults', 'rooms', 'objectiveScore', 'createdAt'])
+        && data.id == snapshotId && data.id.size() > 0 && data.id.size() <= 100
+        && data.status in ['proposed', 'confirmed']
+        && data.petIds is list && data.petIds.size() <= 20
+        && data.pairResults is list && data.pairResults.size() <= 190
+        && data.rooms is list && data.rooms.size() <= 10
+        && (data.objectiveScore == null || data.objectiveScore is number)
+        && data.createdAt is string && data.createdAt.size() >= 20 && data.createdAt.size() <= 40;
+    }
+    function validObservation(data, observationId) {
+      return data.keys().hasOnly(['id', 'scenarioId', 'title', 'facts', 'impacts', 'recommendation', 'observedAt'])
+        && data.id == observationId && data.id.size() > 0 && data.id.size() <= 100
+        && data.scenarioId is string && data.scenarioId.size() > 0 && data.scenarioId.size() <= 100
+        && data.title is string && data.title.size() > 0 && data.title.size() <= 120
+        && data.facts is list && data.facts.size() <= 20
+        && data.impacts is list && data.impacts.size() <= 20
+        && data.recommendation is string && data.recommendation.size() <= 1000
+        && data.observedAt is string && data.observedAt.size() >= 20 && data.observedAt.size() <= 40;
+    }
+
+    // Public demo only: there is intentionally no authentication in this hackathon build.
+    // Keep writes schema-limited, cap list queries, deny deletes, and never persist media bytes.
+    match /demoPets/{petId} {
+      allow get: if true;
+      allow list: if request.query.limit != null && request.query.limit <= 26;
+      allow create, update: if validPet(request.resource.data);
+      allow delete: if false;
+    }
+    match /demoIntakes/{intakeId} {
+      allow create: if validIntake(request.resource.data, intakeId);
+      allow read, update, delete: if false;
+    }
+    match /demoMatchingSnapshots/{snapshotId} {
+      allow create: if validMatchingSnapshot(request.resource.data, snapshotId);
+      allow get: if true;
+      allow list: if request.query.limit != null && request.query.limit <= 25;
+      allow update, delete: if false;
+    }
+    match /demoObservations/{observationId} {
+      allow create: if validObservation(request.resource.data, observationId);
+      allow get: if true;
+      allow list: if request.query.limit != null && request.query.limit <= 25;
+      allow update, delete: if false;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
