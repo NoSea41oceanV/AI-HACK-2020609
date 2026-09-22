@@ -6,16 +6,21 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "emulators:seed": "node scripts/seed-emulator.mjs",
+    "emulators:start": "npx --yes firebase-tools@13.35.1 emulators:start --project demo-pawpair --only auth,firestore",
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
+    "test:rules": "npx --yes firebase-tools@13.35.1 emulators:exec --only firestore \"node firebase.rules.integration.mjs\"",
     "test:watch": "vitest"
   },
   "dependencies": {
     "firebase": "^12.3.0",
+    "qr": "^0.7.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@types/node": "^24.13.6",
     "@types/react": "^19.1.16",
     "@types/react-dom": "^19.1.9",

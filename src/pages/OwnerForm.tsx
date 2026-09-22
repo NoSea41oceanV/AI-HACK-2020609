@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react'
+import { ChangeEvent, FormEvent, useEffect, useState } from 'react'
 import { AI_MEDIA_LIMITS, AI_MEDIA_TYPES, validateOwnerAnalysisMedia } from '../lib/workerClient'
 import './OwnerForm.css'
 
@@ -28,7 +28,7 @@ export interface OwnerRegistrationPayload {
 
 export interface OwnerFormProps {
   onSubmit: (payload: OwnerRegistrationPayload) => void | Promise<void>
-  inviteId?: string
+  inviteId: string
 }
 
 type MediaKind = 'photo' | 'video'
@@ -45,23 +45,6 @@ const PHOTO_TYPES: readonly string[] = AI_MEDIA_TYPES.image
 const VIDEO_TYPES: readonly string[] = AI_MEDIA_TYPES.video
 const MAX_PHOTO_BYTES = AI_MEDIA_LIMITS.imageBytes
 const MAX_VIDEO_BYTES = AI_MEDIA_LIMITS.videoBytes
-
-function resolveInviteId(explicitInviteId?: string): string {
-  if (explicitInviteId) return explicitInviteId
-  if (typeof window === 'undefined') return 'PAW-2026'
-
-  const params = new URLSearchParams(window.location.search)
-  const fromQuery = params.get('invite') ?? params.get('inviteId')
-  if (fromQuery) return fromQuery
-
-  const segments = window.location.pathname.split('/').filter(Boolean)
-  const markerIndex = segments.findIndex((segment) =>
-    ['invite', 'owner', 'register'].includes(segment.toLowerCase()),
-  )
-  return markerIndex >= 0 && segments[markerIndex + 1]
-    ? decodeURIComponent(segments[markerIndex + 1])
-    : 'PAW-2026'
-}
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
@@ -87,8 +70,7 @@ function FileIcon({ kind }: { kind: MediaKind }) {
   )
 }
 
-export default function OwnerForm({ onSubmit, inviteId: inviteIdProp }: OwnerFormProps) {
-  const inviteId = useMemo(() => resolveInviteId(inviteIdProp), [inviteIdProp])
+export default function OwnerForm({ onSubmit, inviteId }: OwnerFormProps) {
   const [photo, setPhoto] = useState<MediaSelection>(EMPTY_MEDIA)
   const [video, setVideo] = useState<MediaSelection>(EMPTY_MEDIA)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -186,6 +168,11 @@ export default function OwnerForm({ onSubmit, inviteId: inviteIdProp }: OwnerFor
     setIsSubmitting(true)
     try {
       await onSubmit(payload)
+      form.reset()
+      if (photo.previewUrl) URL.revokeObjectURL(photo.previewUrl)
+      if (video.previewUrl) URL.revokeObjectURL(video.previewUrl)
+      setPhoto(EMPTY_MEDIA)
+      setVideo(EMPTY_MEDIA)
       setSubmitted(true)
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : '送信できませんでした。時間をおいてお試しください。')
@@ -194,25 +181,28 @@ export default function OwnerForm({ onSubmit, inviteId: inviteIdProp }: OwnerFor
     }
   }
 
+  if (submitted) {
+    return (
+      <main className="owner-form-page owner-form-page--complete">
+        <OwnerHeader />
+        <section className="owner-complete" role="status" aria-labelledby="owner-complete-title">
+          <span className="owner-complete-mark" aria-hidden="true">✓</span>
+          <h1 id="owner-complete-title">登録を受け付けました</h1>
+          <p>ご入力ありがとうございました。お預かりした情報は施設スタッフが確認します。</p>
+          <small>この画面を閉じていただけます。</small>
+        </section>
+      </main>
+    )
+  }
+
   return (
     <main className="owner-form-page">
-      <header className="owner-form-header">
-        <a className="owner-form-brand" href="/" aria-label="PawPair ホーム">
-          <span className="owner-form-brand-mark" aria-hidden="true">P</span>
-          <span>PAWPAIR</span>
-        </a>
-        <p>わんちゃん情報の登録</p>
-      </header>
+      <OwnerHeader />
 
       <section className="owner-form-intro" aria-labelledby="owner-form-title">
         <div>
           <h1 id="owner-form-title">お預かりする<br />わんちゃんについて</h1>
-          <p>安全で楽しい時間を過ごせるよう、普段の様子を教えてください。</p>
-        </div>
-        <div className="owner-form-invite" aria-label={`受付ID ${inviteId}`}>
-          <span>受付ID</span>
-          <strong>{inviteId}</strong>
-          <small>このURLからいつでも情報を登録できます</small>
+          <p>安全で楽しい時間を過ごせるよう、普段の様子を教えてください。施設から届いた専用フォームです。1つのURLで1頭を登録できます。</p>
         </div>
       </section>
 
@@ -310,13 +300,87 @@ export default function OwnerForm({ onSubmit, inviteId: inviteIdProp }: OwnerFor
         <div className="owner-form-submit-area">
           <p>入力内容は施設スタッフがマッチングの参考情報として確認します。</p>
           {submitError && <p className="owner-submit-message owner-submit-error" role="alert">{submitError}</p>}
-          {submitted && <p className="owner-submit-message owner-submit-success" role="status">登録を受け付けました。ありがとうございます。</p>}
-          <button className="owner-submit-button" type="submit" disabled={isSubmitting}>
+          <button className="owner-submit-button" type="submit" disabled={isSubmitting || submitted}>
             {isSubmitting ? '送信中…' : 'この内容で登録する'}
             {!isSubmitting && <span aria-hidden="true">→</span>}
           </button>
         </div>
       </form>
+    </main>
+  )
+}
+
+function OwnerHeader() {
+  return (
+    <header className="owner-form-header">
+      <div className="owner-form-brand" aria-label="PawPair">
+        <span className="owner-form-brand-mark" aria-hidden="true">P</span>
+        <span>PAWPAIR</span>
+      </div>
+      <p>わんちゃん情報の登録</p>
+    </header>
+  )
+}
+
+export type OwnerInviteErrorReason = 'missing' | 'invalid' | 'used' | 'network' | 'unavailable'
+
+export interface OwnerInviteErrorProps {
+  reason?: OwnerInviteErrorReason
+  title?: string
+  message?: string
+  onRetry?: () => void
+  loading?: boolean
+}
+
+const INVITE_ERROR_COPY: Record<OwnerInviteErrorReason, { title: string; message: string }> = {
+  missing: {
+    title: '登録URLを確認してください',
+    message: 'このページは施設からお渡しした登録URLから開く必要があります。URLをもう一度ご確認ください。',
+  },
+  invalid: {
+    title: 'この登録URLは利用できません',
+    message: 'URLが途中で切れていないかご確認ください。解決しない場合は施設へお問い合わせください。',
+  },
+  used: {
+    title: 'この登録URLは使用済みです',
+    message: '1つのURLで登録できるのは1頭です。追加登録が必要な場合は、施設へ新しいURLの発行をご依頼ください。',
+  },
+  unavailable: {
+    title: '登録ページを開けませんでした',
+    message: '時間をおいてもう一度お試しください。解決しない場合は施設へお問い合わせください。',
+  },
+  network: {
+    title: '登録URLを確認できませんでした',
+    message: '通信状況を確認して、もう一度お試しください。',
+  },
+}
+
+export function OwnerInviteError({
+  reason = 'invalid',
+  title,
+  message,
+  onRetry,
+  loading = false,
+}: OwnerInviteErrorProps) {
+  const copy = INVITE_ERROR_COPY[reason]
+  const displayTitle = title ?? (loading ? '登録URLを確認しています' : copy.title)
+  const displayMessage = message ?? (loading ? '安全な登録ページを準備しています。' : copy.message)
+  return (
+    <main className="owner-form-page owner-form-page--error">
+      <OwnerHeader />
+      <section
+        className={`owner-invite-error${loading ? ' owner-invite-error--loading' : ''}`}
+        role={loading ? 'status' : 'alert'}
+        aria-live={loading ? 'polite' : undefined}
+        aria-labelledby="owner-invite-error-title"
+      >
+        <span className="owner-invite-error-mark" aria-hidden="true">{loading ? '…' : '!'}</span>
+        <h1 id="owner-invite-error-title">{displayTitle}</h1>
+        <p>{displayMessage}</p>
+        {onRetry && !loading && (
+          <button className="owner-invite-retry" type="button" onClick={onRetry}>もう一度試す</button>
+        )}
+      </section>
     </main>
   )
 }

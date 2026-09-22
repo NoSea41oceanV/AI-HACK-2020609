@@ -16,6 +16,7 @@ export interface IntakeMediaMetadata {
 export interface OwnerIntake {
   id: string;
   inviteId: string;
+  facilityId: string;
   owner: { name: string; contact: string };
   pet: {
     name: string;
@@ -77,7 +78,7 @@ const isAiAnalysis = (value: unknown): value is IntakeAiAnalysis => {
 export const isOwnerIntake = (value: unknown): value is OwnerIntake => {
   if (!isRecord(value) || !isRecord(value.owner) || !isRecord(value.pet) || !isRecord(value.media)) return false;
   const pet = value.pet;
-  return typeof value.id === "string" && typeof value.inviteId === "string" &&
+  return typeof value.id === "string" && typeof value.inviteId === "string" && typeof value.facilityId === "string" &&
     typeof value.owner.name === "string" && typeof value.owner.contact === "string" &&
     typeof pet.name === "string" && typeof pet.breed === "string" && isFiniteNumber(pet.ageYears) &&
     isFiniteNumber(pet.weightKg) && ["male", "female", "unknown"].includes(String(pet.sex)) &&

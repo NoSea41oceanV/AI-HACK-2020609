@@ -2,6 +2,13 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
+    function isActiveFacility(facilityId) {
+      return request.auth != null
+        && request.auth.uid == facilityId
+        && exists(/databases/$(database)/documents/facilities/$(facilityId))
+        && get(/databases/$(database)/documents/facilities/$(facilityId)).data.active == true;
+    }
+
     function validPet(data) {
       return data.keys().hasOnly(['name', 'breed', 'ageYears', 'weightKg', 'energyLevel', 'sociability', 'anxietyLevel', 'assertiveness', 'resourceGuarding', 'playStyles', 'hardBlockedPetIds', 'notes', 'photoUrl', 'updatedAt'])
         && data.name is string && data.name.size() > 0 && data.name.size() <= 40
@@ -55,10 +62,11 @@ service cloud.firestore {
         && ai.confidence is number && ai.confidence >= 0 && ai.confidence <= 1
         && ai.matchingProfile is map && validMatchingProfile(ai.matchingProfile);
     }
-    function validIntake(data, intakeId) {
-      return data.keys().hasOnly(['id', 'inviteId', 'owner', 'pet', 'media', 'aiAnalysis', 'matchingProfile', 'status', 'submittedAt'])
-        && data.id == intakeId && data.id.size() > 0 && data.id.size() <= 100
-        && data.inviteId is string && data.inviteId.size() > 0 && data.inviteId.size() <= 100
+    function validIntake(data, intakeId, facilityId) {
+      return data.keys().hasOnly(['id', 'inviteId', 'facilityId', 'owner', 'pet', 'media', 'aiAnalysis', 'matchingProfile', 'status', 'submittedAt'])
+        && data.id == intakeId && data.id == data.inviteId
+        && data.inviteId is string && data.inviteId.matches('^[a-f0-9]{64}$')
+        && data.facilityId == facilityId
         && data.owner is map && data.owner.keys().hasOnly(['name', 'contact'])
         && data.owner.name is string && data.owner.name.size() > 0 && data.owner.name.size() <= 80
         && data.owner.contact is string && data.owner.contact.size() > 0 && data.owner.contact.size() <= 200
@@ -99,29 +107,74 @@ service cloud.firestore {
         && data.observedAt is string && data.observedAt.size() >= 20 && data.observedAt.size() <= 40;
     }
 
-    // Public demo only: there is intentionally no authentication in this hackathon build.
-    // Keep writes schema-limited, cap list queries, deny deletes, and never persist media bytes.
-    match /demoPets/{petId} {
-      allow get: if true;
-      allow list: if request.query.limit != null && request.query.limit <= 26;
-      allow create, update: if validPet(request.resource.data);
-      allow delete: if false;
+    function validPublicRegistrationInvite(data) {
+      return data.keys().hasOnly(['active', 'facilityId'])
+        && data.active == true
+        && data.facilityId is string && data.facilityId.size() > 0 && data.facilityId.size() <= 128;
     }
-    match /demoIntakes/{intakeId} {
-      allow create: if validIntake(request.resource.data, intakeId);
-      allow read, update, delete: if false;
+    function validPrivateRegistrationInvite(data) {
+      return data.keys().hasOnly(['staffId', 'createdAt'])
+        && data.staffId is string && data.staffId.matches('^[A-Za-z0-9_-]{1,80}$')
+        && data.createdAt is timestamp;
     }
-    match /demoMatchingSnapshots/{snapshotId} {
-      allow create: if validMatchingSnapshot(request.resource.data, snapshotId);
-      allow get: if true;
-      allow list: if request.query.limit != null && request.query.limit <= 25;
+
+    match /registrationInvites/{inviteHash} {
+      allow get: if inviteHash.matches('^[a-f0-9]{64}$');
+      allow list: if false;
+      allow create: if inviteHash.matches('^[a-f0-9]{64}$')
+        && validPublicRegistrationInvite(request.resource.data)
+        && isActiveFacility(request.resource.data.facilityId)
+        && existsAfter(/databases/$(database)/documents/facilities/$(request.resource.data.facilityId)/registrationInvites/$(inviteHash));
       allow update, delete: if false;
     }
-    match /demoObservations/{observationId} {
-      allow create: if validObservation(request.resource.data, observationId);
-      allow get: if true;
-      allow list: if request.query.limit != null && request.query.limit <= 25;
-      allow update, delete: if false;
+
+    match /facilities/{facilityId} {
+      allow get: if isActiveFacility(facilityId);
+      allow list, create, update, delete: if false;
+
+      match /staffProfiles/{staffId} {
+        allow get: if isActiveFacility(facilityId);
+        allow list: if isActiveFacility(facilityId);
+        allow create, update, delete: if false;
+      }
+      match /registrationInvites/{inviteHash} {
+        allow get: if isActiveFacility(facilityId);
+        allow list: if isActiveFacility(facilityId) && request.query.limit != null && request.query.limit <= 25;
+        allow create: if isActiveFacility(facilityId)
+          && inviteHash.matches('^[a-f0-9]{64}$')
+          && validPrivateRegistrationInvite(request.resource.data)
+          && exists(/databases/$(database)/documents/facilities/$(facilityId)/staffProfiles/$(request.resource.data.staffId))
+          && get(/databases/$(database)/documents/facilities/$(facilityId)/staffProfiles/$(request.resource.data.staffId)).data.active == true
+          && getAfter(/databases/$(database)/documents/registrationInvites/$(inviteHash)).data.facilityId == facilityId;
+        allow update, delete: if false;
+      }
+      match /demoPets/{petId} {
+        allow get: if isActiveFacility(facilityId);
+        allow list: if isActiveFacility(facilityId) && request.query.limit != null && request.query.limit <= 26;
+        allow create, update: if isActiveFacility(facilityId) && validPet(request.resource.data);
+        allow delete: if false;
+      }
+      match /demoIntakes/{intakeId} {
+        allow create: if validIntake(request.resource.data, intakeId, facilityId)
+          && exists(/databases/$(database)/documents/registrationInvites/$(request.resource.data.inviteId))
+          && get(/databases/$(database)/documents/registrationInvites/$(request.resource.data.inviteId)).data.active == true
+          && get(/databases/$(database)/documents/registrationInvites/$(request.resource.data.inviteId)).data.facilityId == facilityId;
+        allow get: if isActiveFacility(facilityId);
+        allow list: if isActiveFacility(facilityId) && request.query.limit != null && request.query.limit <= 25;
+        allow update, delete: if false;
+      }
+      match /demoMatchingSnapshots/{snapshotId} {
+        allow create: if isActiveFacility(facilityId) && validMatchingSnapshot(request.resource.data, snapshotId);
+        allow get: if isActiveFacility(facilityId);
+        allow list: if isActiveFacility(facilityId) && request.query.limit != null && request.query.limit <= 25;
+        allow update, delete: if false;
+      }
+      match /demoObservations/{observationId} {
+        allow create: if isActiveFacility(facilityId) && validObservation(request.resource.data, observationId);
+        allow get: if isActiveFacility(facilityId);
+        allow list: if isActiveFacility(facilityId) && request.query.limit != null && request.query.limit <= 25;
+        allow update, delete: if false;
+      }
     }
     match /{document=**} {
       allow read, write: if false;

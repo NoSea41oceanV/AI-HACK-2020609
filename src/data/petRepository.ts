@@ -9,6 +9,7 @@ export interface PetRepository {
   readonly kind: "local" | "firestore";
   listPage(pageSize?: number, cursor?: string | null): Promise<PetPage>;
   save(pet: PetProfile): Promise<void>;
+  saveIfAbsent(pet: PetProfile): Promise<boolean>;
   saveAll(pets: readonly PetProfile[]): Promise<void>;
   subscribeRecent(listener: (pets: PetProfile[]) => void, limitCount?: number): () => void;
 }

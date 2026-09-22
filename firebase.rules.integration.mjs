@@ -1,197 +1,139 @@
-import { initializeApp } from "firebase/app";
+import { readFile } from 'node:fs/promises'
+import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing'
 import {
   collection,
-  connectFirestoreEmulator,
   deleteDoc,
   doc,
   getDoc,
   getDocs,
-  getFirestore,
   limit,
   query,
+  serverTimestamp,
   setDoc,
-  terminate,
+  Timestamp,
   updateDoc,
-} from "firebase/firestore";
+  where,
+  writeBatch,
+} from 'firebase/firestore'
 
-const projectId = "demo-pawpair";
-const app = initializeApp({ projectId });
-const db = getFirestore(app);
-connectFirestoreEmulator(db, "127.0.0.1", 8189);
+const projectId = 'demo-pawpair'
+const rules = await readFile(new URL('./firestore.rules', import.meta.url), 'utf8')
+const environment = await initializeTestEnvironment({
+  projectId,
+  firestore: { host: '127.0.0.1', port: 8189, rules },
+})
 
-const expectAllowed = async (operation, label) => {
-  try {
-    await operation;
-  } catch (error) {
-    throw new Error(`${label} should be allowed: ${String(error)}`);
-  }
-};
+const facilityA = 'facility-a'
+const facilityB = 'facility-b'
+const nonFacility = 'signed-in-but-not-a-facility'
+const staffA = 'staff-a'
+const staffB = 'staff-b'
+const inviteA = 'a'.repeat(64)
+const inviteB = 'b'.repeat(64)
+const missingInvite = 'c'.repeat(64)
+const now = Timestamp.fromDate(new Date('2026-09-22T00:00:00.000Z'))
 
-const expectDenied = async (operation, label) => {
-  try {
-    await operation;
-  } catch (error) {
-    if (String(error).includes("permission-denied") || String(error).includes("PERMISSION_DENIED")) return;
-    throw new Error(`${label} failed for an unexpected reason: ${String(error)}`);
-  }
-  throw new Error(`${label} should be denied`);
-};
-
-const suffix = Date.now().toString(36);
-const petId = `rules-pet-${suffix}`;
-const validPet = {
-  name: "デモ犬",
-  breed: "mixed",
-  ageYears: 4,
-  weightKg: 9.5,
-  energyLevel: 3,
-  sociability: 4,
-  anxietyLevel: 2,
-  assertiveness: 2,
-  resourceGuarding: 0,
-  playStyles: ["gentle", "fetch"],
-  hardBlockedPetIds: [],
-  notes: "synthetic demo data",
-  updatedAt: new Date().toISOString(),
-};
-
-try {
-  await expectAllowed(setDoc(doc(db, "demoPets", petId), validPet), "valid demo pet create");
-  await expectDenied(
-    setDoc(doc(db, "demoPets", `invalid-${suffix}`), { ...validPet, energyLevel: 99 }),
-    "out-of-range pet create",
-  );
-  await expectDenied(
-    setDoc(doc(db, "demoPets", `pii-${suffix}`), { ...validPet, owner: "must-not-be-stored" }),
-    "extra owner key on demo pet",
-  );
-  await expectDenied(getDocs(collection(db, "demoPets")), "unbounded demo pet list");
-  await expectAllowed(getDocs(query(collection(db, "demoPets"), limit(26))), "bounded demo pet list");
-  await expectDenied(deleteDoc(doc(db, "demoPets", petId)), "demo pet delete");
-
-  const intakeId = `rules-intake-${suffix}`;
-  const intake = {
-    id: intakeId,
-    inviteId: "public-demo",
-    owner: { name: "デモ利用者", contact: "demo@example.invalid" },
-    pet: {
-      name: "デモ犬",
-      breed: "mixed",
-      ageYears: 4,
-      weightKg: 9.5,
-      sex: "unknown",
-      personality: "synthetic demo personality",
-      playStyle: "gentle",
-      concerns: "",
-    },
-    media: {},
-    status: "submitted",
-    submittedAt: new Date().toISOString(),
-  };
-  await expectAllowed(setDoc(doc(db, "demoIntakes", intakeId), intake), "valid owner intake create");
-
-  const mediaIntake = (id, media) => ({ ...intake, id, media });
-  const maximumMetadata = {
-    photo: {
-      kind: "image",
-      fileName: "pet.jpg",
-      contentType: "image/jpeg",
-      sizeBytes: 5 * 1024 * 1024,
-      status: "selected",
-    },
-    video: {
-      kind: "video",
-      fileName: "pet.mp4",
-      contentType: "video/mp4",
-      sizeBytes: 20 * 1024 * 1024,
-      status: "selected",
-    },
-  };
-  const maximumMediaIntakeId = `rules-intake-max-media-${suffix}`;
-  await expectAllowed(
-    setDoc(doc(db, "demoIntakes", maximumMediaIntakeId), mediaIntake(maximumMediaIntakeId, maximumMetadata)),
-    "metadata at image and video byte limits",
-  );
-  const mediaIdIntakeId = `rules-intake-media-id-${suffix}`;
-  await expectDenied(
-    setDoc(doc(db, "demoIntakes", mediaIdIntakeId), mediaIntake(mediaIdIntakeId, {
-      photo: { ...maximumMetadata.photo, mediaId: "persisted-object" },
-    })),
-    "persisted media id metadata",
-  );
-  const dataUrlIntakeId = `rules-intake-data-url-${suffix}`;
-  await expectDenied(
-    setDoc(doc(db, "demoIntakes", dataUrlIntakeId), mediaIntake(dataUrlIntakeId, {
-      photo: { ...maximumMetadata.photo, dataUrl: "data:image/jpeg;base64,/9j/" },
-    })),
-    "raw data URL metadata",
-  );
-  const oversizedPhotoIntakeId = `rules-intake-photo-large-${suffix}`;
-  await expectDenied(
-    setDoc(doc(db, "demoIntakes", oversizedPhotoIntakeId), mediaIntake(oversizedPhotoIntakeId, {
-      photo: { ...maximumMetadata.photo, sizeBytes: (5 * 1024 * 1024) + 1 },
-    })),
-    "photo metadata above 5 MiB",
-  );
-  const oversizedVideoIntakeId = `rules-intake-video-large-${suffix}`;
-  await expectDenied(
-    setDoc(doc(db, "demoIntakes", oversizedVideoIntakeId), mediaIntake(oversizedVideoIntakeId, {
-      video: { ...maximumMetadata.video, sizeBytes: (20 * 1024 * 1024) + 1 },
-    })),
-    "video metadata above 20 MiB",
-  );
-
-  await expectDenied(getDoc(doc(db, "demoIntakes", intakeId)), "owner intake read");
-  await expectDenied(getDocs(query(collection(db, "demoIntakes"), limit(1))), "owner intake list");
-  await expectDenied(updateDoc(doc(db, "demoIntakes", intakeId), { status: "ready" }), "owner intake update");
-  await expectDenied(deleteDoc(doc(db, "demoIntakes", intakeId)), "owner intake delete");
-
-  const snapshotId = `rules-snapshot-${suffix}`;
-  const snapshot = {
-    id: snapshotId,
-    status: "proposed",
-    petIds: [petId],
-    pairResults: [],
-    rooms: [],
-    objectiveScore: null,
-    createdAt: new Date().toISOString(),
-  };
-  await expectAllowed(setDoc(doc(db, "demoMatchingSnapshots", snapshotId), snapshot), "valid matching snapshot create");
-  await expectDenied(
-    setDoc(doc(db, "demoMatchingSnapshots", `pii-${suffix}`), { ...snapshot, id: `pii-${suffix}`, owner: "blocked" }),
-    "extra owner key on matching snapshot",
-  );
-  await expectDenied(getDocs(collection(db, "demoMatchingSnapshots")), "unbounded matching snapshot list");
-  await expectAllowed(
-    getDocs(query(collection(db, "demoMatchingSnapshots"), limit(25))),
-    "bounded matching snapshot list",
-  );
-  await expectDenied(updateDoc(doc(db, "demoMatchingSnapshots", snapshotId), { status: "confirmed" }), "matching snapshot update");
-  await expectDenied(deleteDoc(doc(db, "demoMatchingSnapshots", snapshotId)), "matching snapshot delete");
-
-  const observationId = `rules-observation-${suffix}`;
-  const observation = {
-    id: observationId,
-    scenarioId: "demo-scenario",
-    title: "デモ観測",
-    facts: [],
-    impacts: [],
-    recommendation: "staff review",
-    observedAt: new Date().toISOString(),
-  };
-  await expectAllowed(setDoc(doc(db, "demoObservations", observationId), observation), "valid observation create");
-  await expectDenied(
-    setDoc(doc(db, "demoObservations", `pii-${suffix}`), { ...observation, id: `pii-${suffix}`, contact: "blocked" }),
-    "extra contact key on observation",
-  );
-  await expectDenied(getDocs(collection(db, "demoObservations")), "unbounded observation list");
-  await expectAllowed(getDocs(query(collection(db, "demoObservations"), limit(25))), "bounded observation list");
-  await expectDenied(updateDoc(doc(db, "demoObservations", observationId), { title: "changed" }), "observation update");
-  await expectDenied(deleteDoc(doc(db, "demoObservations", observationId)), "observation delete");
-
-  await expectDenied(getDoc(doc(db, "private", "unknown")), "unspecified collection read");
-} finally {
-  await terminate(db);
+const pet = {
+  name: 'デモ犬', breed: 'mixed', ageYears: 4, weightKg: 9.5,
+  energyLevel: 3, sociability: 4, anxietyLevel: 2, assertiveness: 2,
+  resourceGuarding: 0, playStyles: ['gentle', 'fetch'], hardBlockedPetIds: [],
+  notes: 'synthetic demo data', updatedAt: new Date().toISOString(),
 }
 
-console.log("Firestore Rules integration checks passed.");
+const intake = (inviteId, facilityId = facilityA) => ({
+  id: inviteId,
+  inviteId,
+  facilityId,
+  owner: { name: 'デモ利用者', contact: 'demo@example.invalid' },
+  pet: {
+    name: 'デモ犬', breed: 'mixed', ageYears: 4, weightKg: 9.5, sex: 'unknown',
+    personality: 'synthetic demo personality', playStyle: 'gentle', concerns: '',
+  },
+  media: {},
+  status: 'submitted',
+  submittedAt: new Date().toISOString(),
+})
+
+const matching = (id, petId) => ({
+  id, status: 'proposed', petIds: [petId], pairResults: [], rooms: [],
+  objectiveScore: null, createdAt: new Date().toISOString(),
+})
+
+const observation = (id) => ({
+  id, scenarioId: 'demo-scenario', title: 'デモ観測', facts: [], impacts: [],
+  recommendation: 'staff review', observedAt: new Date().toISOString(),
+})
+
+try {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    const db = context.firestore()
+    await setDoc(doc(db, 'facilities', facilityA), { active: true, name: '施設A' })
+    await setDoc(doc(db, 'facilities', facilityB), { active: true, name: '施設B' })
+    await setDoc(doc(db, 'facilities', facilityA, 'staffProfiles', staffA), { active: true, name: '担当A', createdAt: now })
+    await setDoc(doc(db, 'facilities', facilityB, 'staffProfiles', staffB), { active: true, name: '担当B', createdAt: now })
+  })
+
+  const dbA = environment.authenticatedContext(facilityA).firestore()
+  const dbB = environment.authenticatedContext(facilityB).firestore()
+  const dbUnknown = environment.authenticatedContext(nonFacility).firestore()
+  const dbOwner = environment.unauthenticatedContext().firestore()
+
+  const inviteBatchA = writeBatch(dbA)
+  inviteBatchA.set(doc(dbA, 'registrationInvites', inviteA), { active: true, facilityId: facilityA })
+  inviteBatchA.set(doc(dbA, 'facilities', facilityA, 'registrationInvites', inviteA), { staffId: staffA, createdAt: serverTimestamp() })
+  await assertSucceeds(inviteBatchA.commit())
+
+  const inviteBatchB = writeBatch(dbB)
+  inviteBatchB.set(doc(dbB, 'registrationInvites', inviteB), { active: true, facilityId: facilityB })
+  inviteBatchB.set(doc(dbB, 'facilities', facilityB, 'registrationInvites', inviteB), { staffId: staffB, createdAt: serverTimestamp() })
+  await assertSucceeds(inviteBatchB.commit())
+
+  await assertSucceeds(getDoc(doc(dbOwner, 'registrationInvites', inviteA)))
+  await assertFails(getDocs(collection(dbOwner, 'registrationInvites')))
+  await assertFails(setDoc(doc(dbA, 'registrationInvites', missingInvite), { active: true, facilityId: facilityA }))
+  await assertFails(setDoc(doc(dbUnknown, 'registrationInvites', missingInvite), { active: true, facilityId: nonFacility }))
+  await assertFails(updateDoc(doc(dbA, 'registrationInvites', inviteA), { active: false }))
+  await assertFails(deleteDoc(doc(dbA, 'registrationInvites', inviteA)))
+
+  const intakePathA = doc(dbOwner, 'facilities', facilityA, 'demoIntakes', inviteA)
+  await assertSucceeds(setDoc(intakePathA, intake(inviteA)))
+  await assertFails(setDoc(intakePathA, intake(inviteA)))
+  await assertFails(setDoc(doc(dbOwner, 'facilities', facilityA, 'demoIntakes', missingInvite), intake(missingInvite)))
+  await assertFails(setDoc(doc(dbOwner, 'facilities', facilityB, 'demoIntakes', inviteA), intake(inviteA, facilityB)))
+  await assertFails(setDoc(doc(dbOwner, 'facilities', facilityA, 'demoIntakes', 'different-id'), intake(inviteA)))
+  await assertFails(getDoc(doc(dbOwner, 'facilities', facilityA, 'demoIntakes', inviteA)))
+  await assertFails(getDocs(query(collection(dbOwner, 'facilities', facilityA, 'demoIntakes'), limit(1))))
+  await assertSucceeds(getDoc(doc(dbA, 'facilities', facilityA, 'demoIntakes', inviteA)))
+  await assertSucceeds(getDocs(query(collection(dbA, 'facilities', facilityA, 'demoIntakes'), limit(25))))
+  await assertFails(getDoc(doc(dbB, 'facilities', facilityA, 'demoIntakes', inviteA)))
+
+  const petId = `rules-pet-${Date.now().toString(36)}`
+  await assertSucceeds(setDoc(doc(dbA, 'facilities', facilityA, 'demoPets', petId), pet))
+  await assertFails(getDoc(doc(dbOwner, 'facilities', facilityA, 'demoPets', petId)))
+  await assertFails(getDoc(doc(dbB, 'facilities', facilityA, 'demoPets', petId)))
+  await assertFails(setDoc(doc(dbOwner, 'facilities', facilityA, 'demoPets', 'owner-write'), pet))
+  await assertFails(setDoc(doc(dbA, 'facilities', facilityA, 'demoPets', 'invalid'), { ...pet, energyLevel: 99 }))
+  await assertFails(getDocs(collection(dbA, 'facilities', facilityA, 'demoPets')))
+  await assertSucceeds(getDocs(query(collection(dbA, 'facilities', facilityA, 'demoPets'), limit(26))))
+
+  const snapshot = matching(`snapshot-${Date.now().toString(36)}`, petId)
+  await assertSucceeds(setDoc(doc(dbA, 'facilities', facilityA, 'demoMatchingSnapshots', snapshot.id), snapshot))
+  await assertFails(setDoc(doc(dbOwner, 'facilities', facilityA, 'demoMatchingSnapshots', 'owner'), matching('owner', petId)))
+  const observed = observation(`observation-${Date.now().toString(36)}`)
+  await assertSucceeds(setDoc(doc(dbA, 'facilities', facilityA, 'demoObservations', observed.id), observed))
+  await assertFails(setDoc(doc(dbB, 'facilities', facilityA, 'demoObservations', 'other'), observation('other')))
+
+  await assertSucceeds(getDocs(query(
+    collection(dbA, 'facilities', facilityA, 'staffProfiles'),
+    where('active', '==', true),
+  )))
+  await assertFails(getDocs(collection(dbOwner, 'facilities', facilityA, 'staffProfiles')))
+  await assertFails(getDocs(collection(dbB, 'facilities', facilityA, 'staffProfiles')))
+  await assertFails(setDoc(doc(dbA, 'facilities', facilityA, 'staffProfiles', 'self-added'), { active: true, name: 'self' }))
+  await assertFails(setDoc(doc(dbUnknown, 'facilities', nonFacility), { active: true, name: 'self-elevated' }))
+  await assertFails(getDoc(doc(dbOwner, 'private', 'unknown')))
+
+  console.log('Firestore Rules facility/invite isolation checks passed.')
+} finally {
+  await environment.cleanup()
+}

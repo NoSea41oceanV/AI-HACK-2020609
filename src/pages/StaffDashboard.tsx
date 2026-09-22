@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import './StaffDashboard.css';
+import StaffInvitePanel from '../components/StaffInvitePanel';
 
 export type PetProfile = {
   id: string;
@@ -45,6 +46,8 @@ export type StaffDashboardProps = {
   isOptimizing?: boolean;
   isConfirmed?: boolean;
   updatedAtLabel?: string;
+  onIssueInvite?: () => Promise<string>;
+  issuedByLabel?: string;
   onSelectPair?: (pairId: string) => void;
   onRunOptimization?: () => void;
   onConfirm?: (rooms: RoomAssignment[]) => void;
@@ -90,6 +93,8 @@ export function StaffDashboard({
   isOptimizing = false,
   isConfirmed = false,
   updatedAtLabel = 'たった今更新',
+  onIssueInvite,
+  issuedByLabel,
   onSelectPair,
   onRunOptimization,
   onConfirm,
@@ -134,6 +139,8 @@ export function StaffDashboard({
           {updatedAtLabel}
         </span>
       </header>
+
+      {onIssueInvite ? <StaffInvitePanel onIssue={onIssueInvite} issuedByLabel={issuedByLabel} /> : null}
 
       <section className="matching-flow" aria-labelledby="matching-flow-title">
         <h2 id="matching-flow-title" className="sr-only">マッチングの処理順序</h2>
