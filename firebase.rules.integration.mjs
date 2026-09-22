@@ -1,4 +1,7 @@
 import { readFile } from 'node:fs/promises'
+import { checkStructuredIntakeRules } from './scripts/structured-intake.rules-cases.mjs'
+import { checkDailyOperationsRules } from './scripts/daily-operations.rules-cases.mjs'
+import { checkManualObservationRules } from './scripts/manual-observation.rules-cases.mjs'
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing'
 import {
   collection,
@@ -16,7 +19,8 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 
-const projectId = 'demo-pawpair'
+// Keep contract fixtures and rules isolated from interactive UI emulator sessions.
+const projectId = `demo-pawpals-${Date.now().toString(36)}`
 const rules = await readFile(new URL('./firestore.rules', import.meta.url), 'utf8')
 const environment = await initializeTestEnvironment({
   projectId,
@@ -120,7 +124,11 @@ try {
   await assertSucceeds(setDoc(doc(dbA, 'facilities', facilityA, 'demoMatchingSnapshots', snapshot.id), snapshot))
   await assertFails(setDoc(doc(dbOwner, 'facilities', facilityA, 'demoMatchingSnapshots', 'owner'), matching('owner', petId)))
   const observed = observation(`observation-${Date.now().toString(36)}`)
-  await assertSucceeds(setDoc(doc(dbA, 'facilities', facilityA, 'demoObservations', observed.id), observed))
+  // Old demo rows remain readable, but cannot masquerade as new real observations.
+  await environment.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'facilities', facilityA, 'demoObservations', observed.id), observed)
+  })
+  await assertSucceeds(getDoc(doc(dbA, 'facilities', facilityA, 'demoObservations', observed.id)))
   await assertFails(setDoc(doc(dbB, 'facilities', facilityA, 'demoObservations', 'other'), observation('other')))
 
   await assertSucceeds(getDocs(query(
@@ -133,6 +141,9 @@ try {
   await assertFails(setDoc(doc(dbUnknown, 'facilities', nonFacility), { active: true, name: 'self-elevated' }))
   await assertFails(getDoc(doc(dbOwner, 'private', 'unknown')))
 
+  await checkStructuredIntakeRules(environment)
+  await checkDailyOperationsRules(environment)
+  await checkManualObservationRules(environment)
   console.log('Firestore Rules facility/invite isolation checks passed.')
 } finally {
   await environment.cleanup()

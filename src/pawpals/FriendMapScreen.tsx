@@ -57,7 +57,7 @@ export default function FriendMapScreen({ pets, matchingResult, rooms, selectedP
   const selectedPet = pets.find((pet) => pet.id === selectedPetId) ?? pets[0] ?? null
   const petIndex = petById(pets)
   const positions = createPositions(pets, selectedPet?.id ?? '')
-  const pairs = matchingResult?.pairResults ?? []
+  const pairs = matchingResult?.pairResults.filter((pair) => petIndex.has(pair.petAId) && petIndex.has(pair.petBId)) ?? []
   const selectedPairs = selectedPet
     ? pairs.filter((pair) => pair.petAId === selectedPet.id || pair.petBId === selectedPet.id)
     : []
@@ -71,7 +71,7 @@ export default function FriendMapScreen({ pets, matchingResult, rooms, selectedP
         <div>
           <span className="eyebrow">おともだちマップ</span>
           <h1 id="friend-map-title">おともだちマップ</h1>
-          <p>犬を選ぶと、その子を中心に相性スコア・ハード制約・同室状況を確認できます。</p>
+          <p>当日の預かり犬を選ぶと、その子を中心に相性・ハード制約・割当案の同室状況を確認できます。</p>
         </div>
       </div>
       {selectedPet && matchingResult ? (
@@ -103,7 +103,7 @@ export default function FriendMapScreen({ pets, matchingResult, rooms, selectedP
                         y2={end.y}
                         className={`${pair.allowed ? 'good' : 'incompatible'} ${sameRoom ? 'active-room' : ''}`}
                       >
-                        <title>{petIndex.get(pair.petAId)?.name} × {petIndex.get(pair.petBId)?.name}: {pair.allowed ? `${pair.score}点` : '同室不可'}</title>
+                        <title>{petIndex.get(pair.petAId)?.name} × {petIndex.get(pair.petBId)?.name}: 相性 {pair.score}% / {pair.allowed ? 'ハード制約なし' : '明示的な同室不可'}</title>
                       </line>
                     )
                   })}
@@ -148,7 +148,7 @@ export default function FriendMapScreen({ pets, matchingResult, rooms, selectedP
 
           <div className="card map-detail-wide">
             <div className="map-detail-head">
-              <div><span className="eyebrow">選択中の犬</span><h2>{selectedPet.name}の関係</h2><p>登録済みの全候補を表示しています。</p></div>
+              <div><span className="eyebrow">選択中の犬</span><h2>{selectedPet.name}の関係</h2><p>当日の預かり犬の全候補を表示しています。相性は6因子から計算した目安です。</p></div>
               <span className="map-focus">{selectedPairs.length}ペア</span>
             </div>
             <div className="relation-summary">
@@ -169,9 +169,9 @@ export default function FriendMapScreen({ pets, matchingResult, rooms, selectedP
                       <div><b>{selectedPet.name}</b><span>×</span><b>{other?.name ?? otherId}</b></div>
                       <span className={`verdict ${pair.allowed ? 'good' : 'incompatible'}`}>{pair.allowed ? '制約なし' : '同室不可'}</span>
                     </div>
-                    <div className="relation-score"><strong>{pair.score}</strong><small>/100</small></div>
+                    <div className="relation-score"><strong>{pair.score}</strong><small>%</small></div>
                     <div className="relation-grid">
-                      <div><span>現在の部屋</span><b>{currentRoom ? roomName(rooms, currentRoom.roomId) : '同室割当なし'}</b></div>
+                      <div><span>割当案の部屋</span><b>{currentRoom ? roomName(rooms, currentRoom.roomId) : '同室割当なし'}</b></div>
                       <div><span>ハード制約</span><b>{pair.hardConstraints.map((item) => item.message).join(' / ') || '該当なし'}</b></div>
                     </div>
                   </div>
@@ -181,7 +181,7 @@ export default function FriendMapScreen({ pets, matchingResult, rooms, selectedP
           </div>
         </>
       ) : (
-        <div className="card pawpals-empty"><b>マップを表示できません</b><p>{pets.length === 0 ? '登録済みの犬がいません。' : '相性計算を実行すると関係図を確認できます。'}</p></div>
+        <div className="card pawpals-empty"><b>マップを表示できません</b><p>{pets.length === 0 ? '当日の預かり犬を選択してください。' : '相性計算を実行すると関係図を確認できます。'}</p></div>
       )}
     </section>
   )

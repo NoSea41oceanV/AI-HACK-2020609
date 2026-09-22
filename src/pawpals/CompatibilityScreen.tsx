@@ -19,7 +19,7 @@ export default function CompatibilityScreen({ pets, matchingResult, selectedPetI
   const petIndex = petById(pets)
   const primary = pets.find((pet) => pet.id === selectedPetId) ?? pets[0] ?? null
   const candidates = primary
-    ? matchingResult?.pairResults.filter((pair) => pair.petAId === primary.id || pair.petBId === primary.id) ?? []
+    ? matchingResult?.pairResults.filter((pair) => petIndex.has(pair.petAId) && petIndex.has(pair.petBId) && (pair.petAId === primary.id || pair.petBId === primary.id)) ?? []
     : []
   const selectedPair = candidates.find((pair) => (
     pair.petAId === requestedCounterpartId || pair.petBId === requestedCounterpartId
@@ -40,7 +40,7 @@ export default function CompatibilityScreen({ pets, matchingResult, selectedPetI
         <div>
           <span className="eyebrow">相性カルテ</span>
           <h1 id="compatibility-screen-title">相性カルテ</h1>
-          <p>ハード制約を確認したあと、既存の6因子スコアを表示します。</p>
+          <p>当日の預かり犬について、同室不可の制約と6因子から計算した相性を確認できます。</p>
         </div>
       </div>
 
@@ -61,11 +61,13 @@ export default function CompatibilityScreen({ pets, matchingResult, selectedPetI
               <div><b>{counterpart.name}</b><small>{petSummary(counterpart)}</small></div>
             </div>
             <div className="score-row">
-              <div className="score">{selectedPair.score}<small>/100</small></div>
+              <div className="score" aria-label={`相性 ${selectedPair.score}%`}>{selectedPair.score}<small>%</small></div>
               <span className={`verdict ${selectedPair.allowed ? 'good' : 'incompatible'}`}>
                 {selectedPair.allowed ? 'ハード制約なし' : '同室不可'}
               </span>
             </div>
+            <p>相性は登録プロフィールから計算した目安です。安全を保証する確率ではありません。</p>
+            <h3>相性の内訳（加重点）</h3>
             <div className="score-breakdown">
               {FACTOR_META.map((factor) => (
                 <div key={factor.key}>
@@ -81,10 +83,10 @@ export default function CompatibilityScreen({ pets, matchingResult, selectedPetI
               <b>判定根拠</b>
               {selectedPair.hardConstraints.length > 0 ? (
                 <ul className="pawpals-reasons">
-                  {selectedPair.hardConstraints.map((constraint, index) => <li key={`${constraint.code}-${index}`}>{constraint.message}</li>)}
+                  {selectedPair.hardConstraints.map((constraint, index) => <li key={`${constraint.code}-${index}`}>明示的な同室不可：{constraint.message}</li>)}
                 </ul>
               ) : (
-                <p>登録されたハード制約には該当しません。6因子の合計スコアは{selectedPair.score}点です。</p>
+                <p>明示的な同室不可の登録はありません。6因子の加重点から計算した相性は{selectedPair.score}%です。</p>
               )}
             </div>
           </div>
@@ -94,7 +96,7 @@ export default function CompatibilityScreen({ pets, matchingResult, selectedPetI
             <h2>{primary.name}から見た相性</h2>
             <div className="pawpals-table-wrap">
               <table>
-                <thead><tr><th>相手</th><th>スコア</th><th>ハード制約</th><th><span className="pawpals-sr-only">選択</span></th></tr></thead>
+                <thead><tr><th>相手</th><th>相性</th><th>ハード制約</th><th><span className="pawpals-sr-only">選択</span></th></tr></thead>
                 <tbody>
                   {candidates.map((pair) => {
                     const otherId = pair.petAId === primary.id ? pair.petBId : pair.petAId
@@ -103,7 +105,7 @@ export default function CompatibilityScreen({ pets, matchingResult, selectedPetI
                     return (
                       <tr key={pair.pairKey} className={active ? 'pawpals-row-active' : undefined}>
                         <td>{other?.name ?? otherId}</td>
-                        <td>{pair.score}</td>
+                        <td>{pair.score}%</td>
                         <td><span className={`verdict ${pair.allowed ? 'good' : 'incompatible'}`}>{pair.allowed ? '該当なし' : '同室不可'}</span></td>
                         <td><button type="button" className="pawpals-row-button" onClick={() => setRequestedCounterpartId(otherId)}>{active ? '表示中' : '表示'}</button></td>
                       </tr>
@@ -117,7 +119,7 @@ export default function CompatibilityScreen({ pets, matchingResult, selectedPetI
       ) : (
         <div className="card pawpals-empty">
           <b>表示できるペアがありません</b>
-          <p>{pets.length < 2 ? '相性カルテには2頭以上の登録が必要です。' : '相性計算を実行すると全候補を確認できます。'}</p>
+          <p>{pets.length < 2 ? '相性カルテには当日の預かり犬を2頭以上選択してください。' : '相性計算を実行すると全候補を確認できます。'}</p>
         </div>
       )}
     </section>

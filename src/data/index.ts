@@ -1,6 +1,8 @@
 import { getFirebaseAuth, getFirebaseDb } from "../lib/firebase";
 import { FirestoreIntakeRepository } from "./firestoreIntakeRepository";
 import { FirestoreInviteRepository, FirestoreStaffProfileRepository } from "./firestoreInviteRepository";
+import { FirestoreDailyOperationRepository } from "./firestoreDailyOperationRepository";
+import { FirestoreManualObservationRepository } from "./firestoreManualObservationRepository";
 import { FirestoreOperationRepository } from "./firestoreOperationRepository";
 import { FirestorePetRepository } from "./firestorePetRepository";
 import { LocalIntakeRepository } from "./localIntakeRepository";
@@ -11,6 +13,10 @@ import type { IntakeRepository } from "./intakeRepository";
 export * from "./demoData";
 export * from "./firestoreIntakeRepository";
 export * from "./firestoreInviteRepository";
+export * from "./dailyOperationRepository";
+export * from "./firestoreDailyOperationRepository";
+export * from "./manualObservationRepository";
+export * from "./firestoreManualObservationRepository";
 export * from "./firestoreOperationRepository";
 export * from "./firestorePetRepository";
 export * from "./intakeRepository";
@@ -43,6 +49,18 @@ export const createStaffProfileRepository = () => {
   const db = getFirebaseDb();
   const auth = getFirebaseAuth();
   return db && auth ? new FirestoreStaffProfileRepository(db, auth) : null;
+};
+
+export const createDailyOperationRepository = () => {
+  const db = getFirebaseDb();
+  const auth = getFirebaseAuth();
+  return db && auth ? new FirestoreDailyOperationRepository(db, auth) : null;
+};
+
+export const createManualObservationRepository = () => {
+  const db = getFirebaseDb();
+  const auth = getFirebaseAuth();
+  return db && auth ? new FirestoreManualObservationRepository(db, auth) : null;
 };
 
 export const createOperationRepository = () => {

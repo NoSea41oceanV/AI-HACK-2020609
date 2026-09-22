@@ -1,3 +1,5 @@
+import { isPersonalityAxes, isStructuredIntakeAnswers, STRUCTURED_INTAKE_LABELS, type StructuredIntakeAnswers } from "../src/domain/structuredIntake.ts";
+
 const DEFAULT_BASE_URL = "https://api.orcarouter.ai/v1";
 const DEFAULT_MODELS = ["google/gemini-2.5-flash"];
 const DEFAULT_ORIGINS = ["http://localhost:5173"];
@@ -7,7 +9,7 @@ const MAX_UPSTREAM_BYTES = 1024 * 1024;
 const ALLOWED_IMAGES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const ALLOWED_PLAY_STYLES = new Set(["chase", "wrestle", "tug", "fetch", "gentle", "solo"]);
 const REQUEST_KEYS = new Set(["model", "profile", "media"]);
-const PROFILE_KEYS = new Set(["personality", "playStyle", "precautions"]);
+const PROFILE_KEYS = new Set(["personality", "playStyle", "precautions", "structured"]);
 const MEDIA_KEYS = new Set(["type", "url", "dataUrl"]);
 const PRIVATE_KEY = /(?:owner|guardian|customer|contact|phone|tel|email|mail|address|name|audio|voice|飼い主|利用者|氏名|名前|連絡|電話|住所|メール|音声|鳴き声)/i;
 const PRIVATE_TEXT = [
@@ -27,7 +29,7 @@ export interface Env {
 
 interface ExecutionContextLike { waitUntil(promise: Promise<unknown>): void }
 interface MediaInput { type?: string; url?: string; dataUrl?: string }
-interface PetProfile { personality?: string; playStyle?: string; precautions?: string }
+interface PetProfile { personality?: string; playStyle?: string; precautions?: string; structured?: StructuredIntakeAnswers }
 interface AnalyzeBody { model?: string; profile?: PetProfile; media?: MediaInput | MediaInput[] }
 
 class HttpError extends Error {
@@ -184,6 +186,12 @@ function profileText(body: AnalyzeBody): string {
   }
   const profile = body.profile as Record<string, unknown>;
   assertKeys(profile, PROFILE_KEYS);
+  if (profile.structured !== undefined && !isStructuredIntakeAnswers(profile.structured)) {
+    throw new HttpError(400, "invalid_structured_intake", "構造化回答の形式が不正です。");
+  }
+  const structured = profile.structured as StructuredIntakeAnswers | undefined;
+  // All text, including health/history fields, crosses the same non-PII boundary.
+  if (structured) Object.values(structured).forEach(assertPublicPetText);
   const labels = { personality: "性格", playStyle: "遊び方", precautions: "注意事項" } as const;
   const values: Record<keyof typeof labels, string> = { personality: "", playStyle: "", precautions: "" };
   for (const key of Object.keys(labels) as Array<keyof typeof labels>) {
@@ -194,17 +202,18 @@ function profileText(body: AnalyzeBody): string {
     assertPublicPetText(value);
     values[key] = value.trim();
   }
-  if (!values.personality || !values.playStyle) {
+  if (!structured && (!values.personality || !values.playStyle)) {
     throw new HttpError(400, "profile_required", "性格と遊び方を入力してください。");
   }
   return [
     `性格: ${values.personality}`,
     `遊び方: ${values.playStyle}`,
     `注意事項: ${values.precautions || "記載なし"}`,
+    ...(structured ? Object.entries(STRUCTURED_INTAKE_LABELS).map(([key, label]) => `${label}: ${structured[key as keyof StructuredIntakeAnswers] || "記載なし"}`) : []),
   ].join("\n");
 }
 
-function systemPrompt(): string {
+function systemPrompt(requireAxes = false): string {
   return [
     "あなたはペットホテルの相性マッチングに使う性格傾向の構造化補助AIです。",
     "入力はペットの性格・遊び方・注意事項、任意の写真、ブラウザ内で動画から抽出した音声を含まない静止画像だけです。飼い主の特定や個人情報の推測をせず、音声を評価しないでください。",
@@ -212,6 +221,11 @@ function systemPrompt(): string {
     "JSONのみを返し、次のキーを必ず含めてください:",
     'summary:string, observations:string[], personalityTraits:{label:string,evidence:string,confidence:number}[], compatibilitySignals:string[], riskFlags:string[], confidence:number, matchingProfile:{energyLevel:number,sociability:number,anxietyLevel:number,assertiveness:number,resourceGuarding:number,playStyles:string[]}',
     "energyLevel、sociability、anxietyLevel、assertivenessは1〜5、resourceGuardingは0〜5の整数です。playStylesはchase,wrestle,tug,fetch,gentle,soloから選び、confidenceは0〜1です。",
+    ...(requireAxes ? [
+      "構造化回答を根拠に、最上位のpersonalityAxesも必須です。extraversion（外向性）, sociability（社交性）, neuroticism（神経質性）, trainability（訓練性）, resourceGuarding（資源防衛）, assertiveness（自己主張）, resilience（回復力）の7キーを各0〜100の整数で生成してください。他のキーは含めないでください。",
+      "最上位キーは上記の8項目だけです。personalityAxesをmatchingProfile内に重複して生成しないでください。",
+      "7軸は回答と観察を根拠に生成し、固定の見本値を使わないでください。分からない回答や根拠不足はriskFlagsとconfidenceに明記し、未回答を既知の事実として補完しないでください。医療情報は安全上の注意として扱い、医療診断はしないでください。",
+    ] : []),
   ].join("\n");
 }
 
@@ -261,7 +275,7 @@ async function analyze(request: Request, env: Env, origin: string | null, fetche
     headers: { authorization: `Bearer ${env.ORCAROUTER_API_KEY}`, "content-type": "application/json" },
     body: JSON.stringify({
       model, temperature: 0.1, response_format: { type: "json_object" },
-      messages: [{ role: "system", content: systemPrompt() }, { role: "user", content: [{ type: "text", text }, ...content] }],
+      messages: [{ role: "system", content: systemPrompt(!!body.profile?.structured) }, { role: "user", content: [{ type: "text", text }, ...content] }],
     }),
   }, env, fetcher);
   if (!upstream.ok) {
@@ -275,10 +289,10 @@ async function analyze(request: Request, env: Env, origin: string | null, fetche
   let payload: { choices?: Array<{ message?: { content?: string | Record<string, unknown> } }>; usage?: unknown };
   try { payload = JSON.parse(rawResponse) as typeof payload; }
   catch { throw new HttpError(502, "invalid_model_response", "AIの応答形式が不正です。"); }
-  return json({ ok: true, requestId, model, analysis: parseAnalysis(payload.choices?.[0]?.message?.content), usage: payload.usage ?? null }, 200, origin);
+  return json({ ok: true, requestId, model, analysis: parseAnalysis(payload.choices?.[0]?.message?.content, !!body.profile?.structured), usage: payload.usage ?? null }, 200, origin);
 }
 
-function parseAnalysis(content: string | Record<string, unknown> | undefined): Record<string, unknown> {
+function parseAnalysis(content: string | Record<string, unknown> | undefined, requireAxes = false): Record<string, unknown> {
   let value: Record<string, unknown>;
   if (content && typeof content === "object") value = content;
   else if (typeof content === "string") {
@@ -288,6 +302,11 @@ function parseAnalysis(content: string | Record<string, unknown> | undefined): R
       value = parsed as Record<string, unknown>;
     } catch { throw new HttpError(502, "invalid_model_response", "AIの構造化応答を読み取れません。"); }
   } else throw new HttpError(502, "invalid_model_response", "AIの応答形式が不正です。");
+
+  const analysisKeys = ["summary", "observations", "personalityTraits", "compatibilitySignals", "riskFlags", "confidence", "matchingProfile", "personalityAxes"];
+  if (requireAxes && (Object.keys(value).length !== analysisKeys.length || analysisKeys.some((key) => !Object.hasOwn(value, key)))) {
+    throw new HttpError(502, "invalid_model_response", "AIの構造化応答キーが不正です。");
+  }
 
   const strings = (candidate: unknown): candidate is string[] => Array.isArray(candidate) && candidate.every((item) => typeof item === "string");
   const traits = value.personalityTraits;
@@ -299,11 +318,16 @@ function parseAnalysis(content: string | Record<string, unknown> | undefined): R
   if (typeof value.summary !== "string" || !strings(value.observations) || !validTraits || !strings(value.compatibilitySignals) || !strings(value.riskFlags) || typeof value.confidence !== "number" || !Number.isFinite(value.confidence) || value.confidence < 0 || value.confidence > 1) {
     throw new HttpError(502, "invalid_model_response", "AIの構造化応答を読み取れません。");
   }
+  if ((requireAxes || value.personalityAxes !== undefined) && !isPersonalityAxes(value.personalityAxes)) {
+    throw new HttpError(502, "invalid_model_response", "AIの7軸が不足または不正です。");
+  }
+  const axes = isPersonalityAxes(value.personalityAxes) ? { ...value.personalityAxes } : undefined;
   return {
+    ...(axes ? { personalityAxes: axes } : {}),
     summary: value.summary.slice(0, 2_000), observations: value.observations.slice(0, 50),
     personalityTraits: (traits as Array<Record<string, unknown>>).slice(0, 30),
     compatibilitySignals: value.compatibilitySignals.slice(0, 50), riskFlags: value.riskFlags.slice(0, 50),
-    confidence: value.confidence, matchingProfile: validateMatchingProfile(value.matchingProfile),
+    confidence: value.confidence, matchingProfile: { ...validateMatchingProfile(value.matchingProfile), ...(axes ? { personalityAxes: axes } : {}) },
   };
 }
 

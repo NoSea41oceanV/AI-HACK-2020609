@@ -34,7 +34,8 @@ describe("Firebase Spark deployment configuration", () => {
     expect(intakeMatch).toContain("allow update, delete: if false;");
     expect(rules).toContain("match /facilities/{facilityId}");
     expect(rules).toContain("request.auth.uid == facilityId");
-    expect(rules).toContain("data.id == intakeId && data.id == data.inviteId");
+    expect(rules).toContain("data.id == intakeId");
+    expect(rules).toContain("data.id == data.inviteId");
     expect(rules).toContain("match /{document=**}");
     expect(rules).toContain("allow read, write: if false;");
   });

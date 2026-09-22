@@ -1,3 +1,5 @@
+import type { PersonalityAxes } from "./structuredIntake";
+
 export const PLAY_STYLES = [
   "chase",
   "wrestle",
@@ -10,6 +12,8 @@ export const PLAY_STYLES = [
 export type PlayStyle = (typeof PLAY_STYLES)[number];
 
 export interface PetProfile {
+  /** Present only when an AI analysis actually produced the seven axes. */
+  personalityAxes?: PersonalityAxes;
   id: string;
   name: string;
   breed?: string;
