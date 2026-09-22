@@ -18,7 +18,7 @@ Firebase Hosting / Firestore RulesとCloudflare Workerは配備済みです。20
 - 音声の入力・抽出・解析・保存を行いません。Workerもraw動画と音声を拒否します。
 - AI/Workerの失敗を成功扱いせず、固定結果やローカルAI風判定に置き換えません。失敗は画面に明示します。
 - 全ペアの採点を完了してから、部屋数・定員・安全制約を考慮した部屋割り最適化を行います。
-- 単一利用者、固定URLを前提とします。ログイン、複数施設分離、有料プランは対象外です。
+- 施設ごとに1つのFirebase Email/Passwordアカウントを使用し、施設UIDでFirestoreデータを分離します。施設内の担当者はログイン後にスタッフプロフィールを選択します（個別PINなし）。飼い主は施設発行の期限なし招待URLからのみ登録し、ログインや管理画面へのアクセスは行いません。
 
 ## ローカル開発
 
@@ -31,8 +31,8 @@ Copy-Item .env.example .env.local
 npm run dev
 ```
 
-- スタッフ画面: `/`
-- 飼い主フォーム: `/?view=owner`
+- スタッフ画面: `/`（施設アカウントのログイン必須）
+- 飼い主フォーム: `/owner#invite=<256bit-token>`（スタッフ画面で発行）
 
 `.env.local` には `VITE_FIREBASE_API_KEY`、`VITE_FIREBASE_AUTH_DOMAIN`、`VITE_FIREBASE_PROJECT_ID`、`VITE_FIREBASE_APP_ID`、`VITE_AI_WORKER_URL` が必要です。Repositoryには開発用localStorage実装もありますが、Firebaseを有効にした実フローではOwnerIntakeをlocalStorageへミラーせず、Firebase未設定・保存失敗・AI接続失敗をローカル成功へ置き換えません。
 
