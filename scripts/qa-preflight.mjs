@@ -150,7 +150,7 @@ try {
   const hasAuthenticatedFacilityGuard =
     facilityGuardBlock &&
     /request\.auth\s*!=\s*null/m.test(facilityGuardBlock) &&
-    /facilityId\s*==\s*request\.auth\.uid/m.test(facilityGuardBlock);
+    /(?:facilityId\s*==\s*request\.auth\.uid|request\.auth\.uid\s*==\s*facilityId)/m.test(facilityGuardBlock);
   const hasFacilityScopedRead =
     intakeBlock &&
     /allow\s+get\s*:\s*if\s+isActiveFacility\(facilityId\)\s*;/m.test(intakeBlock) &&
