@@ -1,0 +1,83 @@
+.staff-invite {
+  --invite-ink: #17324f;
+  --invite-green: #2f966f;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1500px;
+  margin: 0 auto 24px;
+  color: var(--invite-ink);
+  background: #fffefb;
+  border: 1px solid rgba(23, 50, 79, 0.1);
+  border-radius: 22px;
+  box-shadow: 0 16px 40px rgba(23, 50, 79, 0.08);
+  padding: clamp(22px, 3vw, 32px);
+  font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+}
+
+.staff-invite *, .staff-invite *::before, .staff-invite *::after { box-sizing: border-box; }
+
+.staff-invite__heading,
+.staff-invite__empty,
+.staff-invite__result,
+.staff-invite__url-row {
+  display: flex;
+  align-items: center;
+}
+
+.staff-invite__heading { justify-content: space-between; gap: 20px; }
+.staff-invite__heading h2 { margin: 0 0 5px; font-size: 20px; }
+.staff-invite__heading p,
+.staff-invite__empty p,
+.staff-invite__share p { margin: 0; color: #66788a; font-size: 13px; }
+.staff-invite__issuer { padding: 6px 11px; color: #287d60; background: #eaf6ef; border-radius: 999px; font-size: 12px; font-weight: 700; }
+
+.staff-invite__empty { gap: 18px; margin-top: 24px; padding: 20px; background: #fffaf4; border-radius: 16px; }
+.staff-invite__empty > div { flex: 1; }
+.staff-invite__empty strong { display: block; margin-bottom: 4px; }
+.staff-invite__paw { display: grid; width: 46px; height: 46px; place-items: center; color: var(--invite-green); background: #eaf6ef; border-radius: 15px; }
+.staff-invite__paw svg { width: 27px; height: 27px; fill: currentColor; }
+
+.staff-invite button {
+  min-height: 44px;
+  padding: 10px 18px;
+  color: #fff;
+  background: var(--invite-green);
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  transition: transform 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+.staff-invite button:hover:not(:disabled) { background: #287d60; box-shadow: 0 8px 18px rgba(47, 150, 111, 0.22); transform: translateY(-1px); }
+.staff-invite button:disabled { cursor: wait; opacity: .65; }
+.staff-invite button:focus-visible,
+.staff-invite input:focus-visible { outline: 3px solid rgba(47, 150, 111, .25); outline-offset: 2px; }
+
+.staff-invite__result { align-items: stretch; gap: 24px; margin-top: 24px; }
+.staff-invite__share { display: flex; flex: 1; flex-direction: column; justify-content: center; min-width: 0; }
+.staff-invite__share label { margin-bottom: 8px; font-size: 12px; font-weight: 800; }
+.staff-invite__url-row { gap: 8px; }
+.staff-invite__url-row input { width: 100%; min-width: 0; min-height: 46px; padding: 10px 13px; color: var(--invite-ink); background: #fffaf4; border: 1px solid #dbe2e7; border-radius: 12px; font: inherit; }
+.staff-invite__share p { margin-top: 9px; }
+.staff-invite__new { align-self: flex-start; margin-top: 16px; color: var(--invite-green) !important; background: #eaf6ef !important; box-shadow: none !important; }
+.staff-invite__qr { display: grid; flex: 0 0 220px; min-height: 220px; padding: 12px; place-items: center; text-align: center; background: #fff; border: 1px solid #e4e8ea; border-radius: 16px; }
+.staff-invite__qr svg { display: block; width: 190px; max-width: 100%; height: auto; margin: auto; }
+.staff-invite__qr span { display: block; margin-top: 7px; color: #66788a; font-size: 10px; }
+.staff-invite__qr p { margin: 0; color: #66788a; font-size: 12px; }
+.staff-invite__qr-error button { min-height: 38px; margin-top: 12px; padding: 8px 12px; font-size: 12px; }
+.staff-invite__status { min-height: 1.5em; margin: 12px 0 0; color: #287d60; font-size: 12px; font-weight: 700; }
+
+@media (max-width: 680px) {
+  .staff-invite__heading,
+  .staff-invite__empty,
+  .staff-invite__result { align-items: stretch; flex-direction: column; }
+  .staff-invite__issuer { align-self: flex-start; }
+  .staff-invite__qr { align-self: center; width: min(100%, 224px); }
+  .staff-invite__url-row { align-items: stretch; flex-direction: column; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .staff-invite *, .staff-invite *::before, .staff-invite *::after { transition-duration: .01ms !important; }
+}
+.staff-invite__url-row button { flex:0 0 auto; white-space:nowrap; }

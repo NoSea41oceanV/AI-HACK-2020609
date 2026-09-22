@@ -15,8 +15,9 @@
 
 1. `.env.local` がない開発環境だけ、`.env.example` を `.env.local` にコピーする。
 2. `.env.local` にFirebase公開Web設定4項目と、配備済みWorkerの `VITE_AI_WORKER_URL` を設定する。Secretは書かない。
-3. Firebase CLIへ本人認証し、対象Projectを確認する。
-4. 検証・ビルド後、Firestore RulesとHostingだけを配備する。
+3. 下記「施設アカウントとスタッフプロフィール」をFirebase Consoleで設定する。
+4. Firebase CLIへ本人認証し、対象Projectを確認する。
+5. 検証・ビルド後、Firestore RulesとHostingだけを同じリリースで配備する。
 
 ```powershell
 if (!(Test-Path .env.local)) { Copy-Item .env.example .env.local }
@@ -28,6 +29,33 @@ npx --yes firebase-tools login
 npx --yes firebase-tools projects:list
 npx --yes firebase-tools deploy --only firestore:rules,hosting --project pawpair-ai-hack-2026
 ```
+
+### 施設アカウントとスタッフプロフィール
+
+この設定はFirebase Spark内で完結します。請求先登録、電話番号認証、Cloud Functions、個別スタッフPINは使用しません。
+
+1. Firebase Consoleの「Authentication」→「Sign-in method」で「メール/パスワード」を有効にする。「メールリンク」は不要。
+2. 「Authentication」→「Users」で施設用ユーザーを1件追加し、そのUIDを控える。実在スタッフ個人ではなく施設管理のメールアドレスを使用する。
+3. Firestore Consoleで `facilities/{UID}` を作成し、`active`（boolean）を `true`、`name`（string）を施設名にする。
+4. その施設ドキュメント配下に `staffProfiles` サブコレクションを作り、担当スタッフごとにドキュメントを追加する。ドキュメントIDは英数字・`_`・`-`の80文字以内とし、`active`（boolean）=`true`、`name`（string）=画面表示名、`createdAt`（timestamp）を設定する。
+5. 施設アカウントでログインし、担当スタッフ名を選択して招待URLを発行する。発行者IDは施設配下の非公開メタデータへ記録される。
+
+招待URLの生トークンはURL fragmentにだけ置かれ、FirestoreにはSHA-256ハッシュだけを保存します。招待に期限フィールドはありません。同じ招待からの受付は決定的なドキュメントIDを使うため1回だけ作成でき、再登録はRulesで拒否されます。
+
+既存のトップレベル `demoPets` 等は新しい施設スコープから読みません。旧公開Rulesから新Rulesへ切り替える際は、認証設定と施設ドキュメントを先に用意し、新しいフロントエンドとRulesを同じ作業で配備してください。
+
+### ローカル認証・Rules検証
+
+Java 18環境との互換性を固定するため、emulator起動にはFirebase CLI 13.35.1を使用します。
+
+```powershell
+npm run test:rules
+npm run emulators:start
+# 別ターミナルで合成施設・スタッフfixtureを追加（既存データのresetや削除はしない）
+npm run emulators:seed
+```
+
+UI E2Eでは `VITE_FIREBASE_AUTH_EMULATOR_URL=http://127.0.0.1:9099`、`VITE_FIRESTORE_EMULATOR_URL=http://127.0.0.1:8189`、Project ID `demo-pawpair` を使用します。これらのemulator変数は配備ビルドには設定しません。
 
 ブラウザ認証だけで完了扱いにせず、`projects:list` で `pawpair-ai-hack-2026` が見えることを確認してから配備します。`firebase.json` は `dist` をFirebase Hostingへ公開し、すべての画面URLを `index.html` へ戻します。Firestoreには `firestore.rules` だけを配備し、Functions / Storageを追加しません。
 

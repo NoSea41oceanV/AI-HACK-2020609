@@ -1,22 +1,22 @@
 :root {
-  --paw-white: #ffffff;
-  --paw-ink: #24352d;
-  --paw-muted: #6c7b73;
-  --paw-sage-50: #f2f7f4;
+  --paw-white: #fffefb;
+  --paw-ink: #17324f;
+  --paw-muted: #6f7f8f;
+  --paw-sage-50: #eaf7f0;
   --paw-sage-100: #e2eee7;
   --paw-sage-300: #aac9b7;
-  --paw-sage-500: #5f9778;
-  --paw-sage-700: #35664f;
+  --paw-sage-500: #2f966f;
+  --paw-sage-700: #247b5c;
   --paw-coral-50: #fff3ef;
   --paw-coral-200: #f5c4b8;
   --paw-coral-500: #e77a66;
   --paw-amber-50: #fff8e8;
   --paw-amber-300: #eccf7b;
-  --paw-line: #dfe8e2;
-  --paw-shadow: 0 14px 38px rgba(43, 78, 61, 0.09);
-  --paw-radius-lg: 22px;
-  --paw-radius-md: 15px;
-  --paw-radius-sm: 10px;
+  --paw-line: #eadfce;
+  --paw-shadow: 0 18px 45px rgba(94, 70, 37, 0.08);
+  --paw-radius-lg: 28px;
+  --paw-radius-md: 16px;
+  --paw-radius-sm: 12px;
 }
 
 .staff-dashboard,
@@ -28,7 +28,7 @@
   min-height: 100vh;
   padding: 24px clamp(18px, 3.2vw, 52px) 48px;
   color: var(--paw-ink);
-  background: var(--paw-white);
+  background: #fffaf4;
   font-family: "Noto Sans JP", "Yu Gothic UI", "Hiragino Kaku Gothic ProN", sans-serif;
 }
 
@@ -777,4 +777,10 @@
     animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
   }
+}
+@media (max-width: 520px) {
+  .staff-dashboard__header { grid-template-columns:minmax(0,1fr); gap:14px; }
+  .staff-dashboard .staff-dashboard__brand { font-size:18px; }
+  .staff-dashboard__updated { grid-column:auto; }
+  .staff-dashboard__header-copy h1 { text-wrap:balance; }
 }
