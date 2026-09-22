@@ -154,7 +154,7 @@ try {
   const hasFacilityScopedRead =
     intakeBlock &&
     /allow\s+get\s*:\s*if\s+isActiveFacility\(facilityId\)\s*;/m.test(intakeBlock) &&
-    /allow\s+list\s*:\s*if\s+isActiveFacility\(facilityId\)\b/m.test(intakeBlock);
+    /allow\s+list\s*:\s*if\s+isActiveFacility\(facilityId\)\s*(?:&&|;)/m.test(intakeBlock);
   if (!intakeBlock) {
     report("FAIL", "Firestore Rules に demoIntakes 規則がありません");
   } else if (/allow\s+read(?:\s*,[^:]*)?\s*:\s*if\s+false\s*;/m.test(intakeBlock)) {
