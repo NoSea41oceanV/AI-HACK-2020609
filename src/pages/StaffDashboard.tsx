@@ -126,9 +126,9 @@ export function StaffDashboard({
   return (
     <main className="staff-dashboard">
       <header className="staff-dashboard__header">
-        <a className="staff-dashboard__brand" href="#matching" aria-label="PAWPAIR マッチング画面">
+        <a className="staff-dashboard__brand" href="#matching" aria-label="PAWLAND マッチング画面">
           <span className="staff-dashboard__brand-mark"><PawMark /></span>
-          <span>PAWPAIR</span>
+          <span>PAWLAND</span>
         </a>
         <div className="staff-dashboard__header-copy">
           <h1>本日のグループマッチング</h1>

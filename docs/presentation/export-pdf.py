@@ -4,9 +4,9 @@ from reportlab.pdfgen import canvas
 from pypdf import PdfReader
 
 root = Path.cwd()
-output = root / 'output/pawpair-pitch/PAWPAIR_発表資料.pdf'
+output = root / 'output/pawpair-pitch/PAWLAND_発表資料.pdf'
 c = canvas.Canvas(str(output), pagesize=(960, 540))
-c.setTitle('PAWPAIR - AI HACK 2026 発表資料')
+c.setTitle('PAWLAND - AI HACK 2026 発表資料')
 for number in range(1, 14):
     image = root / f'tmp/pawpair-pitch/final-{number:02}.png'
     if not image.exists():
