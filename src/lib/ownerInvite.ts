@@ -3,6 +3,7 @@ const OWNER_INVITE_HASH_PATTERN = /^[a-f0-9]{64}$/
 
 export type AppRoute =
   | { kind: 'staff' }
+  | { kind: 'demo' }
   | { kind: 'owner'; token: string | null }
   | { kind: 'not-found' }
 
@@ -30,6 +31,7 @@ export async function hashOwnerInviteToken(token: string): Promise<string> {
 export function parseAppRoute(location: Pick<Location, 'pathname' | 'hash'>): AppRoute {
   const pathname = location.pathname.replace(/\/+$/, '') || '/'
   if (pathname === '/') return { kind: 'staff' }
+  if (pathname === '/demo') return { kind: 'demo' }
   if (pathname !== '/owner') return { kind: 'not-found' }
 
   const fragment = location.hash.startsWith('#') ? location.hash.slice(1) : location.hash

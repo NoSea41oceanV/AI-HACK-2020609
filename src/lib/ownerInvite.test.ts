@@ -6,6 +6,7 @@ describe('owner invite routing', () => {
     const token = 'a'.repeat(43)
     expect(parseAppRoute({ pathname: '/owner', hash: `#invite=${token}` } as Location)).toEqual({ kind: 'owner', token })
     expect(parseAppRoute({ pathname: '/owner', hash: '' } as Location)).toEqual({ kind: 'owner', token: null })
+    expect(parseAppRoute({ pathname: '/demo', hash: '' } as Location)).toEqual({ kind: 'demo' })
     expect(parseAppRoute({ pathname: '/owner', hash: '#invite=PAW-2026' } as Location)).toEqual({ kind: 'owner', token: null })
     expect(parseAppRoute({ pathname: '/staff', hash: `#invite=${token}` } as Location)).toEqual({ kind: 'not-found' })
     expect(parseAppRoute({ pathname: '/', hash: `#invite=${token}` } as Location)).toEqual({ kind: 'staff' })

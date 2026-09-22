@@ -7,9 +7,10 @@ import StaffSelection from './components/StaffSelection'
 import StaffApp from './pawpals/StaffApp'
 import OwnerRegistration from './OwnerRegistration'
 import { OwnerInviteError } from './pages/OwnerForm'
-import { createIntakeRepository, createOperationRepository, createPetRepository, createInviteRepository, createStaffProfileRepository, createDailyOperationRepository, createManualObservationRepository, operationDateForObservation, type MatchingSnapshot, type ObservationRecord, type PetPage, type StaffProfile } from './data'
+import { createIntakeRepository, createOperationRepository, createPetRepository, createInviteRepository, createStaffProfileRepository, createDailyOperationRepository, createManualObservationRepository, demoPets, demoRooms, operationDateForObservation, type MatchingSnapshot, type ObservationRecord, type PetPage, type StaffProfile } from './data'
 import { intakeToPetProfile } from './domain/intakeProfile'
 import { assertOperationDate, isCurrentPlan, isCurrentProposed, type DailyOperationDay, type DailyOperationPlan, type FacilityRoomSettings, type OperationAuditEvent } from './domain/dailyOperations'
+import { createOptimalRoomPlan } from './domain/matching'
 import type { PetProfile as DomainPetProfile, RoomDefinition } from './domain/types'
 import { getFirebaseAuth } from './lib/firebase'
 import { parseAppRoute, generateOwnerInviteToken, createOwnerInviteUrl } from './lib/ownerInvite'
@@ -316,10 +317,48 @@ function FacilityGate() {
   if(state.kind==='denied')return <main className="staff-sign-in"><section className="staff-sign-in__card"><h1>この施設アカウントでは利用できません</h1><p>施設の利用設定を管理担当者に確認してください。</p><button type="button" onClick={logout}>ログアウト</button>{exitError&&<p role="alert">{exitError}</p>}</section></main>
   return <>{exitError&&<p className="app-status app-status--error" role="alert">{exitError}</p>}{selected ? <StaffWorkspace key={state.uid} staff={selected} onChangeStaff={()=>setSelected(null)} onSignOut={logout}/> : <StaffSelection staff={state.staff} onSelect={id=>setSelected(state.staff.find(person=>person.id===id)??null)} onSignOut={logout}/>}</>
 }
+
+function PublicDemo() {
+  const date = todayInJapan()
+  const updatedAt = `${date}T01:00:00.000Z`
+  const result = createOptimalRoomPlan(demoPets, demoRooms)
+  if (result.status !== 'success') return <section className="app-state-panel" role="alert"><h1>デモを表示できません</h1><p>{result.message}</p></section>
+
+  const day: DailyOperationDay = {
+    facilityId: 'public-demo', date, selectedPetIds: demoPets.map((pet) => pet.id).sort(), revision: 2,
+    latestPlanId: 'public-demo-plan', lastAuditId: 'public-demo-confirmed', updatedAt, updatedBy: 'デモ担当',
+  }
+  const roomSettings: FacilityRoomSettings = {
+    facilityId: 'public-demo', rooms: demoRooms, revision: 1, lastAuditId: 'public-demo-rooms', updatedAt, updatedBy: 'デモ担当',
+  }
+  const plan: DailyOperationPlan = {
+    id: 'public-demo-plan', facilityId: 'public-demo', date, status: 'confirmed',
+    petIds: day.selectedPetIds, rooms: demoRooms, roomsRevision: 1, dayRevision: 1, result,
+    sourcePlanId: null, createdAt: updatedAt, updatedAt, staffId: 'デモ担当',
+    reason: '公開デモ用の架空データで確認済み', lastAuditId: 'public-demo-confirmed',
+  }
+  const audit: OperationAuditEvent[] = [{
+    id: 'public-demo-confirmed', facilityId: 'public-demo', date, action: 'confirmed', staffId: 'デモ担当',
+    reason: '公開デモ用の架空データで確認済み', sourcePlanId: null, planId: plan.id, createdAt: updatedAt,
+    dayRevision: 2, roomsRevision: 1,
+  }]
+  const readOnly = async () => { throw new Error('公開デモでは変更を保存しません。画面と計算結果をご確認ください。') }
+
+  return <div className="app-shell">
+    <header className="facility-toolbar"><strong>公開デモ</strong><span>6頭の架空データを表示しています。操作内容は保存されません。</span></header>
+    <StaffApp pets={demoPets} matchingResult={result} rooms={demoRooms} matchingHistory={[]} observations={[]}
+      operationDate={date} dailyOperation={day} roomSettings={roomSettings} currentPlan={plan} auditEntries={audit}
+      staffName="デモ担当" busy={false} onOperationDateChange={() => undefined}
+      onSaveDailyPets={readOnly} onSaveRooms={readOnly} onOptimize={readOnly} onDecidePlan={readOnly}
+      onIssueInvite={async () => { await readOnly(); return '' }} onObserve={readOnly} />
+  </div>
+}
+
 export default function App() {
   const [route,setRoute]=useState(()=>parseAppRoute(window.location))
   useEffect(()=>{const update=()=>setRoute(parseAppRoute(window.location));window.addEventListener('popstate',update);window.addEventListener('hashchange',update);return ()=>{window.removeEventListener('popstate',update);window.removeEventListener('hashchange',update)}},[])
   if(route.kind==='owner')return <OwnerRegistration key={route.token??'missing'} token={route.token}/>
+  if(route.kind==='demo')return <PublicDemo/>
   if(route.kind==='not-found')return <OwnerInviteError reason="invalid"/>
   return <FacilityGate/>
 }
