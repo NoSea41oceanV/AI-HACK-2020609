@@ -146,12 +146,23 @@ function extractBraceBlock(text, marker) {
 try {
   const rules = readFileSync(join(root, "firestore.rules"), "utf8");
   const intakeBlock = extractBraceBlock(rules, "match /demoIntakes/{intakeId}");
+  const facilityGuardBlock = extractBraceBlock(rules, "function isActiveFacility(facilityId)");
+  const hasAuthenticatedFacilityGuard =
+    facilityGuardBlock &&
+    /request\.auth\s*!=\s*null/m.test(facilityGuardBlock) &&
+    /facilityId\s*==\s*request\.auth\.uid/m.test(facilityGuardBlock);
+  const hasFacilityScopedRead =
+    intakeBlock &&
+    /allow\s+get\s*:\s*if\s+isActiveFacility\(facilityId\)\s*;/m.test(intakeBlock) &&
+    /allow\s+list\s*:\s*if\s+isActiveFacility\(facilityId\)\b/m.test(intakeBlock);
   if (!intakeBlock) {
     report("FAIL", "Firestore Rules に demoIntakes 規則がありません");
   } else if (/allow\s+read(?:\s*,[^:]*)?\s*:\s*if\s+false\s*;/m.test(intakeBlock)) {
     report("PASS", "demoIntakes の公開 read は明示的に拒否");
+  } else if (hasAuthenticatedFacilityGuard && hasFacilityScopedRead) {
+    report("PASS", "demoIntakes の read は認証済みの同一施設に限定");
   } else {
-    report("FAIL", "demoIntakes の read:false を確認できません");
+    report("FAIL", "demoIntakes の公開read拒否または施設境界を確認できません");
   }
 } catch (error) {
   report("FAIL", `firestore.rules を読み取れません: ${error instanceof Error ? error.message : "unknown error"}`);
