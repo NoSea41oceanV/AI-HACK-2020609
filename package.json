@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "firebase": "^12.3.0",
+    "qr": "^0.7.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1"
   },

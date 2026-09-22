@@ -1,18 +1,18 @@
 :root {
-  --owner-ink: #24352e;
-  --owner-muted: #68766f;
-  --owner-sage-50: #f3f7f4;
-  --owner-sage-100: #e5eee8;
-  --owner-sage-300: #aec7b7;
-  --owner-sage-600: #527c64;
-  --owner-sage-700: #3d6650;
+  --owner-ink: #17324f;
+  --owner-muted: #66788a;
+  --owner-sage-50: #f1f8f4;
+  --owner-sage-100: #e4f1e9;
+  --owner-sage-300: #a9d2bf;
+  --owner-sage-600: #2f966f;
+  --owner-sage-700: #287d60;
   --owner-coral: #ed765f;
   --owner-coral-dark: #d8604b;
-  --owner-border: #dce5df;
+  --owner-border: #dfe6e9;
   --owner-error: #b54435;
-  --owner-radius-lg: 24px;
-  --owner-radius-md: 14px;
-  --owner-shadow: 0 18px 54px rgba(54, 88, 69, 0.1);
+  --owner-radius-lg: 22px;
+  --owner-radius-md: 16px;
+  --owner-shadow: 0 18px 48px rgba(23, 50, 79, 0.1);
 }
 
 .owner-form-page,
@@ -24,7 +24,7 @@
   min-height: 100vh;
   margin: 0;
   color: var(--owner-ink);
-  background: #fff;
+  background: #fffaf4;
   font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.7;
@@ -56,7 +56,7 @@
   font-size: 14px;
   font-weight: 900;
   letter-spacing: 0.13em;
-  text-decoration: none;
+  cursor: default;
 }
 
 .owner-form-brand-mark {
@@ -76,19 +76,32 @@
 
 .owner-form-intro {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 32px;
   align-items: end;
   width: min(100% - 40px, 760px);
   margin: 68px auto 42px;
 }
 
+.owner-form-intro > div:first-child,
+.owner-form fieldset,
+.owner-form-submit-area {
+  background: #fffefb;
+}
+
+.owner-form-intro > div:first-child {
+  padding: 30px;
+  border: 1px solid rgba(23, 50, 79, .08);
+  border-radius: 22px;
+  box-shadow: var(--owner-shadow);
+}
+
 .owner-form-intro h1 {
   margin: 0 0 16px;
   color: var(--owner-ink);
-  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-family: inherit;
   font-size: clamp(34px, 6vw, 50px);
-  font-weight: 700;
+  font-weight: 900;
   line-height: 1.28;
   letter-spacing: 0.02em;
 }
@@ -133,9 +146,11 @@
 .owner-form fieldset {
   min-width: 0;
   margin: 0;
-  padding: 38px 0 44px;
-  border: 0;
-  border-top: 1px solid var(--owner-border);
+  margin-bottom: 18px;
+  padding: 34px;
+  border: 1px solid rgba(23, 50, 79, .09);
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(23, 50, 79, .05);
 }
 
 .owner-form legend {
@@ -145,9 +160,9 @@
   margin: 0 0 26px;
   padding: 0;
   color: var(--owner-ink);
-  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-family: inherit;
   font-size: 22px;
-  font-weight: 700;
+  font-weight: 900;
 }
 
 .owner-form legend span {
@@ -199,7 +214,7 @@
   margin: 0;
   padding: 13px 15px;
   color: var(--owner-ink);
-  background: #fff;
+  background: #fffefb;
   border: 1px solid #cfdad3;
   border-radius: 10px;
   outline: 0;
@@ -451,6 +466,79 @@
   opacity: 0.7;
 }
 
+.owner-form-page--complete,
+.owner-form-page--error {
+  display: flex;
+  flex-direction: column;
+}
+
+.owner-complete,
+.owner-invite-error {
+  width: min(100% - 40px, 620px);
+  margin: auto;
+  padding: clamp(36px, 7vw, 64px);
+  text-align: center;
+  background: #fffefb;
+  border: 1px solid rgba(23, 50, 79, .1);
+  border-radius: 22px;
+  box-shadow: var(--owner-shadow);
+}
+
+.owner-complete-mark,
+.owner-invite-error-mark {
+  display: grid;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 22px;
+  place-items: center;
+  color: #fff;
+  background: var(--owner-sage-600);
+  border-radius: 20px;
+  font-size: 30px;
+  font-weight: 900;
+  transform: rotate(-3deg);
+}
+
+.owner-invite-error-mark { background: var(--owner-coral); }
+.owner-invite-error--loading .owner-invite-error-mark {
+  background: var(--owner-sage-600);
+  animation: owner-loading-pulse 1.4s ease-in-out infinite;
+}
+.owner-complete h1,
+.owner-invite-error h1 { margin: 0 0 14px; color: var(--owner-ink); font-family: inherit; font-size: clamp(28px, 6vw, 40px); font-weight: 900; line-height: 1.35; }
+.owner-complete p,
+.owner-invite-error p { margin: 0 auto 12px; color: var(--owner-muted); }
+.owner-complete small,
+.owner-invite-error small { color: #8795a1; }
+
+.owner-invite-retry {
+  min-height: 48px;
+  margin-top: 16px;
+  padding: 11px 24px;
+  color: #fff;
+  background: var(--owner-sage-600);
+  border: 0;
+  border-radius: 12px;
+  cursor: pointer;
+  font: 800 14px/1.4 inherit;
+  transition: background-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.owner-invite-retry:hover {
+  background: var(--owner-sage-700);
+  box-shadow: 0 9px 20px rgba(47, 150, 111, .22);
+  transform: translateY(-1px);
+}
+
+.owner-invite-retry:focus-visible {
+  outline: 3px solid rgba(47, 150, 111, .25);
+  outline-offset: 3px;
+}
+
+@keyframes owner-loading-pulse {
+  50% { opacity: .62; transform: rotate(-3deg) scale(.94); }
+}
+
 .owner-submit-button span {
   font-size: 21px;
   line-height: 1;
@@ -479,7 +567,7 @@
   }
 
   .owner-form-intro h1 {
-    font-size: clamp(32px, 10vw, 42px);
+    font-size: 28px;
   }
 
   .owner-form-invite {
@@ -487,7 +575,7 @@
   }
 
   .owner-form fieldset {
-    padding: 32px 0 38px;
+    padding: 26px 20px 30px;
   }
 
   .owner-form legend {
@@ -513,6 +601,10 @@
     padding: 28px 18px;
     border-radius: 20px;
   }
+
+  .owner-form-intro > div:first-child { padding: 24px 20px; }
+  .owner-complete,
+  .owner-invite-error { width: min(100% - 32px, 620px); margin-block: 48px; padding: 34px 22px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -520,6 +612,8 @@
   .owner-form-page *::before,
   .owner-form-page *::after {
     scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }

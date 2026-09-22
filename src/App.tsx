@@ -1,71 +1,23 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserSessionPersistence } from 'firebase/auth'
 import './App.css'
 import ObservationPanel, { type ObservationSubmission } from './components/ObservationPanel'
-import ProcessingStatus, { type ProcessingStep } from './components/ProcessingStatus'
-import {
-  createIntakeRepository,
-  createOperationRepository,
-  createPetRepository,
-  type IntakeMediaMetadata,
-  type IntakeRepository,
-  type MatchingSnapshot,
-  type ObservationRecord,
-  type OperationRepository,
-  type OwnerIntake,
-  type PetRepository,
-} from './data'
-import { intakeToPetProfile, type IntakeAiAnalysis } from './domain/intakeProfile'
+import StaffSignIn from './components/StaffSignIn'
+import StaffSelection from './components/StaffSelection'
+import StaffInvitePanel from './components/StaffInvitePanel'
+import OwnerRegistration from './OwnerRegistration'
+import { OwnerInviteError } from './pages/OwnerForm'
+import { createIntakeRepository, createOperationRepository, createPetRepository, createInviteRepository, createStaffProfileRepository, type IntakeRepository, type PetRepository, type OperationRepository, type MatchingSnapshot, type ObservationRecord, type StaffProfile } from './data'
+import { intakeToPetProfile } from './domain/intakeProfile'
 import { createOptimalRoomPlan } from './domain/matching'
-import type {
-  MatchingResult,
-  PairCompatibility,
-  PetProfile as DomainPetProfile,
-  RoomDefinition,
-} from './domain/types'
-import { createAIWorkerClient, type AIWorkerClient } from './lib/workerClient'
-import OwnerForm, { type OwnerRegistrationPayload } from './pages/OwnerForm'
-import StaffDashboard, {
-  type CompatibilityPair,
-  type PetProfile as DashboardPetProfile,
-  type RoomAssignment as DashboardRoomAssignment,
-} from './pages/StaffDashboard'
-
-interface RuntimeServices {
-  intakeRepository: IntakeRepository
-  petRepository: PetRepository
-  operationRepository: OperationRepository
-  workerClient: AIWorkerClient | null
-  workerError: string | null
-}
-
-type Runtime = { ok: true; services: RuntimeServices } | { ok: false; error: string }
-
-const createRuntime = (): Runtime => {
-  try {
-    let workerClient: AIWorkerClient | null = null
-    let workerError: string | null = null
-    try {
-      workerClient = createAIWorkerClient()
-    } catch (error) {
-      workerError = error instanceof Error ? error.message : 'AI Worker設定を読み込めませんでした。'
-    }
-    return {
-      ok: true,
-      services: {
-        intakeRepository: createIntakeRepository(),
-        petRepository: createPetRepository(),
-        operationRepository: createOperationRepository(),
-        workerClient,
-        workerError,
-      },
-    }
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : 'サービス設定を読み込めませんでした。' }
-  }
-}
-
-const runtime = createRuntime()
-
+import type { MatchingResult, PairCompatibility, PetProfile as DomainPetProfile, RoomDefinition } from './domain/types'
+import { getFirebaseAuth } from './lib/firebase'
+import { parseAppRoute, generateOwnerInviteToken, createOwnerInviteUrl } from './lib/ownerInvite'
+import StaffDashboard, { type CompatibilityPair, type PetProfile as DashboardPetProfile, type RoomAssignment as DashboardRoomAssignment } from './pages/StaffDashboard'
+interface RuntimeServices { intakeRepository:IntakeRepository;petRepository:PetRepository;operationRepository:OperationRepository }
+type Runtime={ok:true;services:RuntimeServices}|{ok:false;error:string}
+function createRuntime():Runtime { try {return {ok:true,services:{intakeRepository:createIntakeRepository(),petRepository:createPetRepository(),operationRepository:createOperationRepository()}}}catch{return {ok:false,error:'施設データへの接続を準備できませんでした。'}} }
+const runtime=createRuntime()
 const ROOM_CATALOG = [
   { id: 'garden', name: 'ガーデンルーム' },
   { id: 'sunny', name: 'サニールーム' },
@@ -80,30 +32,6 @@ const FACTOR_META = [
   ['emotionalBalance', '感情バランス', 10],
   ['resourceSafety', '資源防衛リスク', 10],
 ] as const
-
-const OWNER_STEPS: ProcessingStep[] = [
-  { id: 'analysis', label: '入力とメディアをAI解析', status: 'idle' },
-  { id: 'intake', label: '解析済み受付をFirestore保存', status: 'idle' },
-  { id: 'profile', label: '非PIIプロフィールを保存', status: 'idle' },
-  { id: 'matching', label: '全ペア採点・部屋最適化', status: 'idle' },
-]
-
-interface SubmissionAttempt {
-  signature: string
-  intakeId: string
-  intakeStored: boolean
-  analysis?: IntakeAiAnalysis
-}
-
-type OwnerAnalysisCapableClient = AIWorkerClient & {
-  analyzeOwnerRegistration(input: {
-    personality: string
-    playStyle: string
-    concerns: string
-    photo?: Blob & { name?: string }
-    video?: Blob & { name?: string }
-  }): Promise<{ analysis: IntakeAiAnalysis }>
-}
 
 type AppStatus = { tone: 'info' | 'success' | 'error'; message: string }
 
@@ -181,33 +109,6 @@ function createMatchingSnapshot(result: MatchingResult, pets: readonly DomainPet
   }
 }
 
-function selectedMedia(file: File | null, kind: IntakeMediaMetadata['kind']): IntakeMediaMetadata | undefined {
-  return file ? { kind, fileName: file.name, contentType: file.type, sizeBytes: file.size, status: 'selected' } : undefined
-}
-
-function validatePayload(payload: OwnerRegistrationPayload) {
-  const checks: Array<[string, string, number]> = [
-    ['飼い主名', payload.owner.name, 80],
-    ['連絡先', payload.owner.contact, 200],
-    ['わんちゃんの名前', payload.pet.name, 40],
-    ['犬種', payload.pet.breed, 80],
-    ['性格', payload.pet.personality, 1_000],
-    ['遊び方', payload.pet.playStyle, 1_000],
-    ['注意事項', payload.pet.concerns, 1_000],
-  ]
-  for (const [label, value, maximum] of checks) {
-    if (value.length > maximum) throw new Error(`${label}は${maximum}文字以内で入力してください。`)
-  }
-  for (const file of [payload.media.photo, payload.media.video]) {
-    if (file && file.name.length > 120) throw new Error('ファイル名は120文字以内にしてください。')
-  }
-}
-
-function payloadSignature(payload: OwnerRegistrationPayload): string {
-  const fileKey = (file: File | null) => file ? [file.name, file.size, file.type, file.lastModified] : null
-  return JSON.stringify({ inviteId: payload.inviteId, owner: payload.owner, pet: payload.pet, photo: fileKey(payload.media.photo), video: fileKey(payload.media.video) })
-}
-
 function toDashboardPets(pets: readonly DomainPetProfile[]): DashboardPetProfile[] {
   return pets.map((pet) => ({ id: pet.id, name: pet.name, breed: pet.breed, ageLabel: `${pet.ageYears}歳`, avatarUrl: pet.photoUrl }))
 }
@@ -221,62 +122,16 @@ function firebaseConfigurationError(): string | null {
   return null
 }
 
-function ownerConfigurationError(): string | null {
-  const firebaseError = firebaseConfigurationError()
-  if (firebaseError || !runtime.ok) return firebaseError
-  const { workerClient, workerError } = runtime.services
-  if (workerError) return workerError
-  if (!workerClient) return 'AI Workerを初期化できませんでした。'
-  if (workerClient.state.kind === 'disabled') return workerClient.state.reason
-  return null
-}
-
-function DemoNavigation({ ownerView }: { ownerView: boolean }) {
-  return (
-    <nav className="demo-navigation" aria-label="画面の切り替え">
-      <span className="demo-navigation__label">PAWPAIR</span>
-      <a href="/" aria-current={ownerView ? undefined : 'page'}>スタッフ</a>
-      <a href="/?view=owner" aria-current={ownerView ? 'page' : undefined}>飼い主フォーム</a>
-    </nav>
-  )
-}
-
-function isOwnerRoute() {
-  const params = new URLSearchParams(window.location.search)
-  return window.location.pathname.replace(/\/+$/, '') === '/owner' || params.get('view') === 'owner'
-}
-
-function setStepStatus(steps: readonly ProcessingStep[], id: string, status: ProcessingStep['status']): ProcessingStep[] {
-  return steps.map((step) => step.id === id ? { ...step, status } : step)
-}
-
-function retryableMessage(error: unknown) {
-  const detail = error instanceof Error ? error.message : '処理を完了できませんでした。'
-  return `${detail} 入力内容を変えずに同じボタンから再試行できます。`
-}
-
-function requireOwnerAnalysisClient(client: AIWorkerClient): OwnerAnalysisCapableClient {
-  const candidate = client as AIWorkerClient & { analyzeOwnerRegistration?: unknown }
-  if (typeof candidate.analyzeOwnerRegistration !== 'function') {
-    throw new Error('AI Workerクライアントが飼い主登録解析に対応していません。最新版を反映して再読み込みしてください。')
-  }
-  return candidate as OwnerAnalysisCapableClient
-}
-
-export default function App() {
-  const ownerView = isOwnerRoute()
-  const submissionAttempt = useRef<SubmissionAttempt | null>(null)
+function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile;onChangeStaff:()=>void;onSignOut:()=>void}) {
   const [pets, setPets] = useState<DomainPetProfile[]>([])
   const [dataState, setDataState] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [ownerSteps, setOwnerSteps] = useState<ProcessingStep[]>(OWNER_STEPS)
-  const [ownerError, setOwnerError] = useState('')
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [isConfirmed, setIsConfirmed] = useState(false)
   const [status, setStatus] = useState<AppStatus>(() => {
     const configurationError = firebaseConfigurationError()
     return configurationError
       ? { tone: 'error', message: configurationError }
-      : { tone: 'info', message: 'Firestoreから登録プロフィールを読み込んでいます。' }
+      : { tone: 'info', message: '施設の登録情報を読み込んでいます。' }
   })
 
   const rooms = useMemo(() => createRooms(pets.length), [pets.length])
@@ -296,6 +151,9 @@ export default function App() {
 
     setDataState('loading')
     try {
+      const intakes = await runtime.services.intakeRepository.listRecent(25)
+      await Promise.all(intakes.filter(intake => intake.status === 'ready' && intake.matchingProfile).map(intake =>
+        runtime.services.petRepository.saveIfAbsent(intakeToPetProfile({ intakeId:intake.id, pet:intake.pet, matchingProfile:intake.matchingProfile }))))
       const page = await runtime.services.petRepository.listPage(20)
       setPets(page.pets)
       setDataState('ready')
@@ -303,20 +161,20 @@ export default function App() {
       setStatus({
         tone: 'success',
         message: page.pets.length > 0
-          ? `Firestoreから${page.pets.length}頭を取得し、全${page.pets.length * (page.pets.length - 1) / 2}ペアを採点しました。`
-          : 'Firestoreへの接続を確認しました。登録済みプロフィールはまだありません。',
+          ? `${page.pets.length}頭の登録情報を読み込み、全${page.pets.length * (page.pets.length - 1) / 2}ペアを採点しました。`
+          : '登録済みのわんちゃんはまだいません。',
       })
       return page.pets
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Firestoreからプロフィールを取得できませんでした。'
       setDataState('error')
-      setStatus({ tone: 'error', message: `${message} 「再接続」を押して再試行してください。` })
+      setStatus({ tone: 'error', message: `${message} 「登録情報を更新」を押して再試行してください。` })
       throw error
     }
   }, [])
 
   useEffect(() => {
-    if (firebaseConfigurationError() || !runtime.ok || ownerView) {
+    if (firebaseConfigurationError() || !runtime.ok) {
       setDataState('error')
       return
     }
@@ -332,114 +190,7 @@ export default function App() {
       active = false
       unsubscribe()
     }
-  }, [loadPets, ownerView])
-
-  const submitOwnerRegistration = useCallback(async (payload: OwnerRegistrationPayload): Promise<void> => {
-    validatePayload(payload)
-    const configurationError = ownerConfigurationError()
-    if (configurationError) {
-      const message = retryableMessage(new Error(configurationError))
-      setOwnerError(message)
-      setOwnerSteps(setStepStatus(OWNER_STEPS, 'analysis', 'error'))
-      throw new Error(message)
-    }
-    if (!runtime.ok) throw new Error(runtime.error)
-
-    const { intakeRepository, petRepository, operationRepository, workerClient } = runtime.services
-    if (!workerClient) throw new Error('AI Workerを初期化できませんでした。')
-    const signature = payloadSignature(payload)
-    let attempt = submissionAttempt.current
-    if (!attempt || attempt.signature !== signature) {
-      attempt = { signature, intakeId: crypto.randomUUID(), intakeStored: false }
-      submissionAttempt.current = attempt
-    }
-
-    setOwnerError('')
-    let activeStep = 'analysis'
-    setOwnerSteps(OWNER_STEPS.map((step) => ({ ...step, status: step.id === activeStep ? 'active' : 'idle' })))
-    try {
-      if (!attempt.analysis) {
-        const ownerAnalysisClient = requireOwnerAnalysisClient(workerClient)
-        const result = await ownerAnalysisClient.analyzeOwnerRegistration({
-          personality: payload.pet.personality,
-          playStyle: payload.pet.playStyle,
-          concerns: payload.pet.concerns,
-          photo: payload.media.photo ?? undefined,
-          video: payload.media.video ?? undefined,
-        })
-        attempt.analysis = result.analysis
-      }
-      setOwnerSteps((steps) => setStepStatus(steps, 'analysis', 'done'))
-
-      activeStep = 'intake'
-      setOwnerSteps((steps) => setStepStatus(steps, activeStep, 'active'))
-      if (!attempt.intakeStored) {
-        const intake: OwnerIntake = {
-          id: attempt.intakeId,
-          inviteId: payload.inviteId,
-          owner: { ...payload.owner },
-          pet: {
-            name: payload.pet.name,
-            breed: payload.pet.breed,
-            ageYears: payload.pet.age,
-            weightKg: payload.pet.weightKg,
-            sex: payload.pet.sex,
-            personality: payload.pet.personality,
-            playStyle: payload.pet.playStyle,
-            concerns: payload.pet.concerns,
-          },
-          media: { photo: selectedMedia(payload.media.photo, 'image'), video: selectedMedia(payload.media.video, 'video') },
-          aiAnalysis: attempt.analysis,
-          matchingProfile: attempt.analysis.matchingProfile,
-          status: 'ready',
-          submittedAt: new Date().toISOString(),
-        }
-        await intakeRepository.save(intake)
-        attempt.intakeStored = true
-      }
-      setOwnerSteps((steps) => setStepStatus(steps, 'intake', 'done'))
-
-      activeStep = 'profile'
-      setOwnerSteps((steps) => setStepStatus(steps, activeStep, 'active'))
-      const profile = intakeToPetProfile({
-        intakeId: attempt.intakeId,
-        pet: {
-          name: payload.pet.name,
-          breed: payload.pet.breed,
-          ageYears: payload.pet.age,
-          weightKg: payload.pet.weightKg,
-          personality: payload.pet.personality,
-          playStyle: payload.pet.playStyle,
-          concerns: payload.pet.concerns,
-        },
-        matchingProfile: attempt.analysis.matchingProfile,
-      })
-      await petRepository.save(profile)
-      setOwnerSteps((steps) => setStepStatus(steps, 'profile', 'done'))
-
-      activeStep = 'matching'
-      setOwnerSteps((steps) => setStepStatus(steps, activeStep, 'active'))
-      const page = await petRepository.listPage(20)
-      if (!page.pets.some((pet) => pet.id === profile.id)) throw new Error('保存したプロフィールをFirestoreで確認できませんでした。')
-      const nextMatching = createOptimalRoomPlan(page.pets, createRooms(page.pets.length))
-      await operationRepository.saveMatching(createMatchingSnapshot(nextMatching, page.pets, 'proposed'))
-      setOwnerSteps((steps) => setStepStatus(steps, 'matching', 'done'))
-      submissionAttempt.current = null
-    } catch (error) {
-      setOwnerSteps((steps) => setStepStatus(steps, activeStep, 'error'))
-      const message = retryableMessage(error)
-      setOwnerError(message)
-      if (activeStep === 'intake' && !attempt.intakeStored) {
-        submissionAttempt.current = {
-          signature: attempt.signature,
-          intakeId: crypto.randomUUID(),
-          intakeStored: false,
-          analysis: attempt.analysis,
-        }
-      }
-      throw new Error(message)
-    }
-  }, [])
+  }, [loadPets])
 
   const saveCurrentMatching = useCallback(async (confirmation: boolean) => {
     const configurationError = firebaseConfigurationError()
@@ -459,9 +210,9 @@ export default function App() {
       setStatus({
         tone: 'success',
         message: confirmation
-          ? 'この部屋割りをFirestoreへ最終確定として保存しました。'
+          ? 'この部屋割りを確定して保存しました。'
           : matchingResult.status === 'success'
-            ? `全${matchingResult.pairResults.length}ペアを再採点し、部屋割り案をFirestoreへ保存しました。`
+            ? `全${matchingResult.pairResults.length}ペアを再採点し、部屋割り案を保存しました。`
             : matchingResult.message,
       })
     } catch (error) {
@@ -520,57 +271,78 @@ export default function App() {
     }
   }, [pets])
 
-  if (ownerView) {
-    return (
-      <div className="app-shell">
-        <DemoNavigation ownerView />
-        <ProcessingStatus title="登録処理の進行状況" steps={ownerSteps} error={ownerError || ownerConfigurationError() || undefined} />
-        <OwnerForm inviteId="PAW-2026" onSubmit={submitOwnerRegistration} />
-      </div>
-    )
+
+  const issueInvite = async () => {
+    const repository=createInviteRepository()
+    if(!repository)throw new Error('登録URLを発行できません。')
+    const token=generateOwnerInviteToken()
+    await repository.create(token,staff.id)
+    return createOwnerInviteUrl(window.location.origin,token)
   }
-
-  return (
-    <div className="app-shell">
-      <DemoNavigation ownerView={false} />
-      <div className={`app-status app-status--${status.tone}`} role={status.tone === 'error' ? 'alert' : 'status'}>
-        <span>{status.message}</span>
-        {dataState === 'error' ? <button type="button" onClick={() => void loadPets().catch(() => undefined)}>再接続</button> : null}
-      </div>
-
-      {dataState === 'ready' && matchingResult ? (
-        <>
-          <StaffDashboard
-            pets={dashboardPets}
-            pairs={dashboardPairs}
-            rooms={dashboardRooms}
-            isOptimizing={isOptimizing}
-            isConfirmed={isConfirmed}
-            onRunOptimization={() => void saveCurrentMatching(false)}
-            onConfirm={() => void saveCurrentMatching(true)}
-          />
-          <div className="app-observation-shell">
-            <ObservationPanel pets={dashboardPets} isSubmitting={isOptimizing} onSubmit={applyObservation} />
-          </div>
-        </>
-      ) : dataState === 'loading' ? (
-        <section className="app-state-panel" aria-live="polite">
-          <span className="app-spinner" aria-hidden="true" />
-          <h1>Firestoreから読み込み中</h1>
-          <p>登録済みプロフィールを確認しています。</p>
-        </section>
-      ) : dataState === 'ready' ? (
-        <section className="app-state-panel">
-          <h1>登録プロフィールはまだありません</h1>
-          <p>飼い主フォームでAI解析まで完了すると、ここに実データが表示されます。</p>
-          <a href="/?view=owner">飼い主フォームを開く</a>
-        </section>
-      ) : (
-        <section className="app-state-panel app-state-panel--error">
-          <h1>スタッフ画面を開始できません</h1>
-          <p>上のエラーを解消してから「再接続」を押してください。固定データへの切り替えは行いません。</p>
-        </section>
-      )}
+  return <div className="app-shell">
+    <header className="facility-toolbar">
+      <strong>操作担当: {staff.name}</strong>
+      <span>スタッフ選択は操作担当の記録です</span>
+      <button type="button" onClick={onChangeStaff}>担当を変更</button>
+      <button type="button" onClick={onSignOut}>ログアウト</button>
+    </header>
+    <div className={`app-status app-status--${status.tone}`} role={status.tone==='error'?'alert':'status'}>
+      <span>{status.message}</span>
+      <button type="button" disabled={dataState==='loading'} onClick={()=>void loadPets().catch(()=>undefined)}>登録情報を更新</button>
     </div>
-  )
+    {dataState==='ready' && matchingResult ? <>
+      <StaffDashboard key={staff.id} pets={dashboardPets} pairs={dashboardPairs} rooms={dashboardRooms} isOptimizing={isOptimizing} isConfirmed={isConfirmed} onIssueInvite={issueInvite} issuedByLabel={staff.name} onRunOptimization={()=>void saveCurrentMatching(false)} onConfirm={()=>void saveCurrentMatching(true)} />
+      <div className="app-observation-shell"><ObservationPanel pets={dashboardPets} isSubmitting={isOptimizing} onSubmit={applyObservation}/></div>
+    </> : dataState==='ready' ? <div className="app-empty-facility">
+      <section className="app-state-panel"><h1>わんちゃんの登録を受け付けましょう</h1><p>登録URLを飼い主さまへお渡しください。登録後に「登録情報を更新」で反映できます。</p></section>
+      <StaffInvitePanel key={staff.id} onIssue={issueInvite} issuedByLabel={staff.name}/>
+    </div> : <section className="app-state-panel" role="status"><h1>{dataState==='loading'?'登録情報を読み込んでいます':'登録情報を読み込めませんでした'}</h1><p>{dataState==='loading'?'そのままお待ちください。':'接続を確認し、「登録情報を更新」を押してください。'}</p></section>}
+  </div>
+}
+
+type FacilityState={kind:'loading'}|{kind:'signed-out'}|{kind:'denied'}|{kind:'ready';uid:string;staff:StaffProfile[]}
+function FacilityGate() {
+  const [auth]=useState(()=>{try{return getFirebaseAuth()}catch{return null}})
+  const [state,setState]=useState<FacilityState>({kind:'loading'})
+  const [selected,setSelected]=useState<StaffProfile|null>(null)
+  const [exitError,setExitError]=useState('')
+  useEffect(()=>{
+    if(!auth){setState({kind:'signed-out'});return}
+    let version=0
+    const unsubscribe=onAuthStateChanged(auth,user=>{
+      const current=++version
+      setSelected(null)
+      if(!user){setState({kind:'signed-out'});return}
+      setState({kind:'loading'})
+      void (async()=>{
+        try{
+          const repository=createStaffProfileRepository()
+          if(!repository)throw new Error('Unconfigured')
+          const staff=await repository.listActive()
+          if(current===version)setState({kind:'ready',uid:user.uid,staff})
+        }catch{if(current===version)setState({kind:'denied'})}
+      })()
+    })
+    return ()=>{version++;unsubscribe()}
+  },[auth])
+  async function login(email:string,password:string) {
+    if(!auth)throw new Error('Unconfigured')
+    await setPersistence(auth,browserSessionPersistence)
+    await signInWithEmailAndPassword(auth,email,password)
+  }
+  function logout() {
+    setExitError('')
+    if(auth)void signOut(auth).catch(()=>setExitError('ログアウトできませんでした。接続を確認し、もう一度お試しください。'))
+  }
+  if(state.kind==='signed-out')return <StaffSignIn onSignIn={login} disabledReason={!auth?'現在ログインを利用できません。施設の管理担当者へお問い合わせください。':undefined}/>
+  if(state.kind==='loading')return <section className="app-state-panel" role="status"><h1>施設の利用権限を確認しています</h1></section>
+  if(state.kind==='denied')return <main className="staff-sign-in"><section className="staff-sign-in__card"><h1>この施設アカウントでは利用できません</h1><p>施設の利用設定を管理担当者に確認してください。</p><button type="button" onClick={logout}>ログアウト</button>{exitError&&<p role="alert">{exitError}</p>}</section></main>
+  return <>{exitError&&<p className="app-status app-status--error" role="alert">{exitError}</p>}{selected ? <StaffWorkspace key={state.uid} staff={selected} onChangeStaff={()=>setSelected(null)} onSignOut={logout}/> : <StaffSelection staff={state.staff} onSelect={id=>setSelected(state.staff.find(person=>person.id===id)??null)} onSignOut={logout}/>}</>
+}
+export default function App() {
+  const [route,setRoute]=useState(()=>parseAppRoute(window.location))
+  useEffect(()=>{const update=()=>setRoute(parseAppRoute(window.location));window.addEventListener('popstate',update);window.addEventListener('hashchange',update);return ()=>{window.removeEventListener('popstate',update);window.removeEventListener('hashchange',update)}},[])
+  if(route.kind==='owner')return <OwnerRegistration key={route.token??'missing'} token={route.token}/>
+  if(route.kind==='not-found')return <OwnerInviteError reason="invalid"/>
+  return <FacilityGate/>
 }
