@@ -1,6 +1,6 @@
 # PawPals / PAWPAIR ER図と保存契約
 
-更新日: 2026-09-22。基点 `6609e68` の実collectionと、今回追加する論理モデルを分けて示す。
+更新日: 2026-09-22。設計基点 `6609e68` と、backend統合 `d12a381` / `3350193` / `373f39e` の保存契約を示す。UI/App統合と公開配備は別に判定する。
 受入条件は [証拠対応表](integration/pawpals-acceptance.md)、業務仕様は [確定設計書](ペットホテル自律AIエージェント_設計書_v4.md)。
 
 ## 基点の実保存先
@@ -19,7 +19,7 @@
 根拠: `src/data/firestore*Repository.ts`、`firestoreFacilityScope.ts`、`firestore.rules`。
 旧トップレベル `demoPets` 等を現在の施設スコープ保存先として記載しない。
 
-## 今回の論理ER（先行確定契約・実装検証待ち）
+## 今回の論理ER（backend実装・検証済み、App統合待ち）
 
 以下は要件上の関連を示す。実collectionとの対応は後述の先行確定契約を参照する。AI_ANALYSISは基点では受付内に埋め込まれ、独立collectionではない。
 
@@ -68,9 +68,9 @@ erDiagram
 - 保存済み観測・snapshotsを表示する。severity、alert ack、交流実績を仮の永続データで埋めない。
 - 写真/動画は媒体メタデータだけ保存し、バイナリ・data URLを永続化しない。飼い主情報とAI分析入力の境界を維持する。
 
-## backend先行確定契約（2026-09-22受領）
+## backend確定契約と実装証拠
 
-次の追加パスはすべて `facilities/{facilityId}/` 配下。基点6609e68には未統合であり、配備済みパスとは記載しない。
+次の追加パスはすべて `facilities/{facilityId}/` 配下。backendは `3048cc6` / `48e0e02` / `d6431c9` で実装・検証され、統合branchへ `d12a381` / `3350193` / `373f39e` として取り込まれた。Firestore indexesも追加済み。公開配備済みとは記載しない。
 
 | パス | フィールド |
 |---|---|

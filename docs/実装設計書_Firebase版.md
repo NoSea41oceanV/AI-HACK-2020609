@@ -24,7 +24,7 @@ Firestoreは `pawpair-ai-hack-2026` / `asia-northeast1`。Firebase Cloud Functio
 - `MatchingSnapshot` は `proposed | confirmed` の2状態。今回の `rejected / superseded`、担当監査、対象日は未統合。
 - 計算対象は基点で取得した登録犬、部屋は暫定生成であり、日付付き明示選択・施設別保存への拡張が必要。
 - 現Firestore Rulesは施設スコープと招待境界を持つ。旧トップレベルの公開デモcollectionと区別する。
-- Workerの基点契約は `personality / playStyle / concerns` と一時画像。今回の構造化入力・7軸契約はbackendから先行確定連絡を受領済み。実装・検証証拠は別途待つ。
+- Workerの基点契約は `personality / playStyle / concerns` と一時画像。今回の構造化入力・7軸は `3048cc6` でbackend実装・検証済み。UI/App統合、実サービスE2E、配備は別途確認する。
 
 ## 3. 追加実装の接続順
 
@@ -52,9 +52,11 @@ Firestoreは `pawpair-ai-hack-2026` / `asia-northeast1`。Firebase Cloud Functio
 - `FirestoreDailyOperationRepository`: getDay / getPlan / getRooms / saveDay / saveRooms / recalculate / decide / listAudit。更新はexpectedRevisionと選択staffIdを受け、transactionと監査を伴う。
 - `recalculate` はexpectedRoomsRevisionも検証。`decide` は最新headと日付・対象revision・部屋revisionの一致案だけをconfirmed/rejectedへ進める。旧日付なし履歴は当日集計しない。
 - `ManualObservationRecord`: 既存観測に `source:'manual', staffId, petIds, operationDate` を追加。createManualがsource/scenarioIdをmanualへ固定。listManualを提供。同ID同内容は再送可能、別内容は拒否。スタッフ有効性・対象犬の施設所属を確認する。
-- 将来IFは `src/domain/observationIngestion.ts`。cameraはunsupported。factoryの最終export名、手動観測のpetIds上限2、部屋minOccupancy省略時0の正規化はbackend実装報告で確定を確認する。
+- 将来IFは `src/domain/observationIngestion.ts`。cameraはunsupported。手動観測・ingestion境界は `d6431c9`、当日運用・部屋設定・監査は `48e0e02` で実装された。
 
-契約出典: backendタスクの2026-09-22 A/B/C先行連絡。対象branch `feat/pawpals-data-contracts`。commit SHAとテスト結果は未受領。
+実装証拠: `origin/feat/pawpals-data-contracts` の `3048cc6`（受付/7軸）、`48e0e02`（当日運用/監査）、`d6431c9`（手動観測/ingestion）。担当報告ではアプリ89件、Worker 18件、typecheck/build、Rules実emulatorが成功。Firestore indexesを追加済み。文書担当はリモート変更範囲を照合したが、テスト自体は再実行していない。公開配備は未実施。
+
+統合branchではbackendが `d12a381` / `3350193` / `373f39e` として取り込まれ、UI `87ad6c0` も共有済み。統合途中の担当報告ではアプリ18ファイル114件とWorker 18件が成功した。Appの旧props接続1件が残ってtypecheckは未完であり、App統合、build、統合E2E、公開配備の完了証拠はまだない。
 
 ## 5. AI・媒体・エラー
 
