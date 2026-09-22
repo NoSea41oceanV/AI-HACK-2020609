@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">PawPals システム構成</title>
+  <desc id="desc">飼い主の入力をWebアプリで受け付け、犬の情報だけをAI分析へ送り、Firestoreに保存したプロフィールを決定ロジックで評価し、スタッフが最終判断する流れ。</desc>
+  <defs>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#355344" flood-opacity="0.12"/>
+    </filter>
+    <marker id="arrowGreen" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#5F8068"/>
+    </marker>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#517FA4"/>
+    </marker>
+    <style>
+      text { font-family: "Yu Gothic", "Noto Sans JP", sans-serif; fill: #2F4438; }
+      .title { font-family: Georgia, "Yu Mincho", serif; font-size: 52px; font-weight: 700; fill: #365846; }
+      .subtitle { font-size: 24px; fill: #68796F; }
+      .step { font-size: 20px; font-weight: 700; letter-spacing: .08em; fill: #5F8068; }
+      .box-title { font-size: 30px; font-weight: 700; }
+      .box-copy { font-size: 21px; fill: #5F6F66; }
+      .small { font-size: 19px; fill: #68796F; }
+      .arrow-label { font-size: 18px; font-weight: 700; fill: #4F6658; }
+      .card { fill: #FFFDF8; stroke: #D8D2C4; stroke-width: 2.5; filter: url(#shadow); }
+      .green-card { fill: #EEF5EC; stroke: #8CAC91; stroke-width: 2.5; filter: url(#shadow); }
+      .blue-card { fill: #EEF5FA; stroke: #8EB1CB; stroke-width: 2.5; filter: url(#shadow); }
+      .orange-card { fill: #FFF4E8; stroke: #E4B77E; stroke-width: 2.5; filter: url(#shadow); }
+      .green-line { fill: none; stroke: #5F8068; stroke-width: 5; marker-end: url(#arrowGreen); }
+      .blue-line { fill: none; stroke: #517FA4; stroke-width: 5; marker-end: url(#arrowBlue); }
+      .dash-line { fill: none; stroke: #8B9C92; stroke-width: 4; stroke-dasharray: 10 10; marker-end: url(#arrowGreen); }
+    </style>
+  </defs>
+
+  <rect width="1600" height="900" fill="#FBF7EE"/>
+  <circle cx="82" cy="76" r="26" fill="#DCEBDD"/>
+  <circle cx="121" cy="76" r="18" fill="#EBDDC7"/>
+  <circle cx="1518" cy="80" r="34" fill="#E7EFE3"/>
+  <text x="800" y="78" text-anchor="middle" class="title">PawPals システム構成</text>
+  <text x="800" y="118" text-anchor="middle" class="subtitle">AIが整理し、コードが安全を守り、最後はスタッフが決める</text>
+
+  <!-- People -->
+  <rect x="55" y="205" rx="24" ry="24" width="260" height="175" class="green-card"/>
+  <text x="85" y="246" class="step">STEP 1</text>
+  <text x="185" y="296" text-anchor="middle" class="box-title">飼い主</text>
+  <text x="185" y="334" text-anchor="middle" class="box-copy">愛犬の性格・行動を入力</text>
+
+  <rect x="1260" y="510" rx="24" ry="24" width="285" height="205" class="orange-card"/>
+  <text x="1290" y="551" class="step" fill="#A16C2E">STEP 5</text>
+  <text x="1402" y="602" text-anchor="middle" class="box-title">施設スタッフ</text>
+  <text x="1402" y="642" text-anchor="middle" class="box-copy">提案と理由を確認</text>
+  <rect x="1320" y="665" rx="18" ry="18" width="165" height="38" fill="#5F8068"/>
+  <text x="1402" y="692" text-anchor="middle" font-size="20" font-weight="700" fill="#FFFFFF">最終判断は人</text>
+
+  <!-- Web app -->
+  <rect x="390" y="195" rx="24" ry="24" width="285" height="205" class="card"/>
+  <text x="420" y="236" class="step">STEP 2</text>
+  <text x="532" y="288" text-anchor="middle" class="box-title">Webアプリ</text>
+  <text x="532" y="326" text-anchor="middle" class="box-copy">React / Firebase Hosting</text>
+  <text x="532" y="363" text-anchor="middle" class="small">招待URL・登録フォーム・スタッフ画面</text>
+
+  <!-- AI boundary -->
+  <rect x="750" y="165" rx="28" ry="28" width="780" height="245" fill="#F5F9FC" stroke="#B9CBD9" stroke-width="2.5"/>
+  <text x="782" y="207" class="step" fill="#517FA4">STEP 3　AI分析</text>
+  <rect x="790" y="235" rx="20" ry="20" width="270" height="125" class="blue-card"/>
+  <text x="925" y="287" text-anchor="middle" class="box-title">Cloudflare Worker</text>
+  <text x="925" y="326" text-anchor="middle" class="small">APIキーと送信項目を守る</text>
+  <rect x="1205" y="235" rx="20" ry="20" width="270" height="125" class="blue-card"/>
+  <text x="1340" y="287" text-anchor="middle" class="box-title">OrcaRouter</text>
+  <text x="1340" y="326" text-anchor="middle" class="small">性格・遊び方を構造化</text>
+  <path d="M 1060 297 L 1205 297" class="blue-line"/>
+  <rect x="990" y="126" rx="16" ry="16" width="300" height="45" fill="#FFF2F0" stroke="#D99991" stroke-width="2"/>
+  <text x="1140" y="156" text-anchor="middle" font-size="19" font-weight="700" fill="#A64D45">氏名・連絡先はAIへ送らない</text>
+
+  <!-- Storage -->
+  <rect x="390" y="520" rx="24" ry="24" width="285" height="190" class="card"/>
+  <text x="420" y="561" class="step">データ</text>
+  <text x="532" y="612" text-anchor="middle" class="box-title">Firestore</text>
+  <text x="532" y="651" text-anchor="middle" class="box-copy">施設ごとに分けて保存</text>
+  <text x="532" y="684" text-anchor="middle" class="small">飼い主情報・犬プロフィール・観察</text>
+
+  <!-- Deterministic decision -->
+  <rect x="750" y="500" rx="28" ry="28" width="430" height="235" class="green-card"/>
+  <text x="782" y="542" class="step">STEP 4　決定ロジック</text>
+  <rect x="790" y="570" rx="14" ry="14" width="350" height="42" fill="#FFFFFF" stroke="#B9CCB8"/>
+  <text x="965" y="599" text-anchor="middle" font-size="21" font-weight="700">① 全ペアの相性を比較</text>
+  <rect x="790" y="626" rx="14" ry="14" width="350" height="42" fill="#FFFFFF" stroke="#B9CCB8"/>
+  <text x="965" y="655" text-anchor="middle" font-size="21" font-weight="700">② 同室不可・定員を確認</text>
+  <rect x="790" y="682" rx="14" ry="14" width="350" height="42" fill="#FFFFFF" stroke="#B9CCB8"/>
+  <text x="965" y="711" text-anchor="middle" font-size="21" font-weight="700">③ 部屋割り案を作成</text>
+
+  <!-- Main arrows -->
+  <path d="M 315 292 L 390 292" class="green-line"/>
+  <text x="352" y="273" text-anchor="middle" class="arrow-label">入力</text>
+  <path d="M 675 265 L 750 265" class="blue-line"/>
+  <text x="712" y="244" text-anchor="middle" class="arrow-label">犬の情報だけ</text>
+  <path d="M 532 400 L 532 520" class="green-line"/>
+  <text x="550" y="466" class="arrow-label">保存</text>
+  <path d="M 1340 360 L 1340 450 L 675 450 L 675 570" class="blue-line"/>
+  <text x="1008" y="438" text-anchor="middle" class="arrow-label">構造化プロフィール</text>
+  <path d="M 675 615 L 750 615" class="green-line"/>
+  <path d="M 1180 615 L 1260 615" class="green-line"/>
+  <text x="1220" y="594" text-anchor="middle" class="arrow-label">提案</text>
+
+  <!-- Feedback / invite -->
+  <path d="M 1320 715 L 1320 790 L 532 790 L 532 710" class="dash-line"/>
+  <text x="925" y="818" text-anchor="middle" class="arrow-label">当日の観察・スタッフの判断を記録</text>
+  <path d="M 1260 545 L 1210 545 L 1210 835 L 185 835 L 185 380" class="dash-line"/>
+  <text x="410" y="860" text-anchor="middle" class="arrow-label">施設が登録URL / QRを発行</text>
+
+  <!-- Role legend -->
+  <rect x="55" y="730" rx="18" ry="18" width="245" height="62" fill="#EEF5FA" stroke="#8EB1CB" stroke-width="2"/>
+  <text x="177" y="769" text-anchor="middle" font-size="21" font-weight="700" fill="#446E8F">AI：情報を整理</text>
+  <rect x="325" y="730" rx="18" ry="18" width="245" height="62" fill="#EEF5EC" stroke="#8CAC91" stroke-width="2"/>
+  <text x="447" y="769" text-anchor="middle" font-size="21" font-weight="700">コード：安全を守る</text>
+  <rect x="595" y="730" rx="18" ry="18" width="245" height="62" fill="#FFF4E8" stroke="#E4B77E" stroke-width="2"/>
+  <text x="717" y="769" text-anchor="middle" font-size="21" font-weight="700" fill="#855E31">人：最後に決める</text>
+</svg>
