@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { checkDailyOperationsRules } from './scripts/daily-operations.rules-cases.mjs'
 import { checkStructuredIntakeRules } from './scripts/structured-intake.rules-cases.mjs'
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing'
 import {
@@ -136,6 +137,7 @@ try {
   await assertFails(getDoc(doc(dbOwner, 'private', 'unknown')))
 
   await checkStructuredIntakeRules(environment)
+  await checkDailyOperationsRules(environment)
   console.log('Firestore Rules facility/invite isolation checks passed.')
 } finally {
   await environment.cleanup()

@@ -235,6 +235,176 @@ service cloud.firestore {
         && data.observedAt is string && data.observedAt.size() >= 20 && data.observedAt.size() <= 40;
     }
 
+    function operationId(id) {
+      return id is string && id.matches('^[A-Za-z0-9_-]{1,100}$');
+    }
+    function operationDate(date) {
+      return date is string && date.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+    function operationTime(value) {
+      return value is string && value.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$');
+    }
+    function operationActor(facilityId, staffId) {
+      return operationId(staffId)
+        && get(/databases/$(database)/documents/facilities/$(facilityId)/staffProfiles/$(staffId)).data.active == true;
+    }
+    function operationPetIds(ids) {
+      return ids is list && ids.size() <= 20 && ids.toSet().size() == ids.size();
+    }
+    function validRoom(room) {
+      return [
+        room is map,
+        room.size() == 4,
+        operationId(room.id),
+        room.name is string,
+        room.name.size() > 0,
+        room.name.size() <= 100,
+        room.capacity is int,
+        room.capacity >= 1,
+        room.capacity <= 20,
+        room.minOccupancy is int,
+        room.minOccupancy >= 0,
+        room.minOccupancy <= room.capacity
+      ].hasOnly([true]);
+    }
+    function roomAt(rooms, i) { return rooms.size() <= i || validRoom(rooms[i]); }
+    function validRooms(rooms) {
+      return [
+        rooms is list,
+        rooms.size() > 0,
+        rooms.size() <= 10,
+        roomAt(rooms, 0),
+        roomAt(rooms, 1),
+        roomAt(rooms, 2),
+        roomAt(rooms, 3),
+        roomAt(rooms, 4),
+        roomAt(rooms, 5),
+        roomAt(rooms, 6),
+        roomAt(rooms, 7),
+        roomAt(rooms, 8),
+        roomAt(rooms, 9)
+      ].hasOnly([true]);
+    }
+    function freshOperationAudit(facilityId, auditId, actor, time) {
+      let path = /databases/$(database)/documents/facilities/$(facilityId)/operationAudit/$(auditId);
+      let audit = getAfter(path).data;
+      return operationId(auditId) && !exists(path)
+        && audit.facilityId == facilityId && audit.staffId == actor && audit.createdAt == time;
+    }
+    function validDay(data, facilityId, date) {
+      return data is map && data.size() == 8 && data.facilityId == facilityId && data.date == date
+        && operationDate(date) && operationPetIds(data.selectedPetIds)
+        && data.revision is int && data.revision > 0
+        && (data.latestPlanId == null || operationId(data.latestPlanId))
+        && operationTime(data.updatedAt) && operationActor(facilityId, data.updatedBy)
+        && freshOperationAudit(facilityId, data.lastAuditId, data.updatedBy, data.updatedAt);
+    }
+    function validDayChange(data, facilityId, date) {
+      let audit = getAfter(/databases/$(database)/documents/facilities/$(facilityId)/operationAudit/$(data.lastAuditId)).data;
+      return validDay(data, facilityId, date) && data.revision == resource.data.revision + 1
+        && audit.date == date && audit.dayRevision == data.revision
+        && ((audit.action == 'day_saved' && data.latestPlanId == resource.data.latestPlanId)
+          || (audit.action in ['recalculated', 'confirmed', 'rejected']
+            && data.selectedPetIds == resource.data.selectedPetIds
+            && data.latestPlanId == audit.planId
+            && (audit.action == 'recalculated' || data.latestPlanId == resource.data.latestPlanId)));
+    }
+    function validRoomSettings(data, facilityId) {
+      let audit = getAfter(/databases/$(database)/documents/facilities/$(facilityId)/operationAudit/$(data.lastAuditId)).data;
+      return [
+        data is map,
+        data.size() == 6,
+        data.facilityId == facilityId,
+        data.revision is int,
+        data.revision > 0,
+        validRooms(data.rooms),
+        operationTime(data.updatedAt),
+        operationActor(facilityId, data.updatedBy),
+        freshOperationAudit(facilityId, data.lastAuditId, data.updatedBy, data.updatedAt),
+        audit.action == 'rooms_saved',
+        audit.roomsRevision == data.revision
+      ].hasOnly([true]);
+    }
+    function planBase(data, facilityId, planId) {
+      return data is map && data.size() == 15 && data.id == planId && operationId(planId)
+        && data.facilityId == facilityId && operationDate(data.date)
+        && operationPetIds(data.petIds) && data.petIds.size() > 0
+        && data.reason is string && data.reason.size() > 0 && data.reason.size() <= 1000
+        && operationTime(data.createdAt) && operationTime(data.updatedAt)
+        && operationActor(facilityId, data.staffId)
+        && freshOperationAudit(facilityId, data.lastAuditId, data.staffId, data.updatedAt);
+    }
+    function oldProposalSuperseded(facilityId, oldId, auditId) {
+      return oldId == null
+        || get(/databases/$(database)/documents/facilities/$(facilityId)/operationPlans/$(oldId)).data.status != 'proposed'
+        || (getAfter(/databases/$(database)/documents/facilities/$(facilityId)/operationPlans/$(oldId)).data.status == 'superseded'
+          && getAfter(/databases/$(database)/documents/facilities/$(facilityId)/operationPlans/$(oldId)).data.lastAuditId == auditId);
+    }
+    function createOperationPlan(data, facilityId, planId) {
+      let day = get(/databases/$(database)/documents/facilities/$(facilityId)/dailyOperations/$(data.date)).data;
+      let nextDay = getAfter(/databases/$(database)/documents/facilities/$(facilityId)/dailyOperations/$(data.date)).data;
+      let settings = get(/databases/$(database)/documents/facilities/$(facilityId)/settings/rooms).data;
+      let audit = getAfter(/databases/$(database)/documents/facilities/$(facilityId)/operationAudit/$(data.lastAuditId)).data;
+      return planBase(data, facilityId, planId) && data.status == 'proposed'
+        && data.createdAt == data.updatedAt && data.petIds == day.selectedPetIds
+        && data.rooms == settings.rooms && data.roomsRevision == settings.revision
+        && data.dayRevision == day.revision + 1 && nextDay.revision == data.dayRevision
+        && nextDay.latestPlanId == planId && nextDay.lastAuditId == data.lastAuditId
+        && data.sourcePlanId == day.latestPlanId && oldProposalSuperseded(facilityId, day.latestPlanId, data.lastAuditId)
+        && data.result is map && data.result.status == 'success'
+        && data.result.rooms is list && data.result.rooms.size() <= 10
+        && data.result.pairResults is list && data.result.pairResults.size() <= 190
+        && audit.action == 'recalculated' && audit.planId == planId;
+    }
+    function updateOperationPlan(data, facilityId, planId) {
+      let old = resource.data;
+      let day = get(/databases/$(database)/documents/facilities/$(facilityId)/dailyOperations/$(old.date)).data;
+      let nextDay = getAfter(/databases/$(database)/documents/facilities/$(facilityId)/dailyOperations/$(old.date)).data;
+      let settings = get(/databases/$(database)/documents/facilities/$(facilityId)/settings/rooms).data;
+      let audit = getAfter(/databases/$(database)/documents/facilities/$(facilityId)/operationAudit/$(data.lastAuditId)).data;
+      return old.status == 'proposed' && day.latestPlanId == planId
+        && data.diff(old).affectedKeys().hasOnly(['status', 'staffId', 'reason', 'updatedAt', 'lastAuditId'])
+        && operationActor(facilityId, data.staffId) && operationTime(data.updatedAt)
+        && data.reason is string && data.reason.size() > 0 && data.reason.size() <= 1000
+        && freshOperationAudit(facilityId, data.lastAuditId, data.staffId, data.updatedAt)
+        && nextDay.revision == day.revision + 1 && nextDay.lastAuditId == data.lastAuditId
+        && ((data.status in ['confirmed', 'rejected'] && old.dayRevision == day.revision
+          && old.roomsRevision == settings.revision && old.petIds == day.selectedPetIds
+          && nextDay.latestPlanId == planId && audit.action == data.status && audit.planId == planId)
+        || (data.status == 'superseded' && audit.action == 'recalculated'
+          && audit.sourcePlanId == planId && nextDay.latestPlanId == audit.planId && audit.planId != planId));
+    }
+    function validOperationAudit(data, facilityId, auditId) {
+      return data is map && data.size() == 11 && data.id == auditId && operationId(auditId)
+        && data.facilityId == facilityId && operationActor(facilityId, data.staffId)
+        && operationTime(data.createdAt) && data.reason is string && data.reason.size() > 0 && data.reason.size() <= 1000
+        && (data.sourcePlanId == null || operationId(data.sourcePlanId))
+        && (data.planId == null || operationId(data.planId))
+        && (data.action == 'rooms_saved' ? roomsAuditLinked(data, facilityId) : dayAuditLinked(data, facilityId));
+    }
+    function roomsAuditLinked(audit, facilityId) {
+      let rooms = getAfter(/databases/$(database)/documents/facilities/$(facilityId)/settings/rooms).data;
+      return audit.date == null && audit.dayRevision == null && audit.sourcePlanId == null && audit.planId == null
+        && rooms.lastAuditId == audit.id && rooms.revision == audit.roomsRevision
+        && rooms.updatedBy == audit.staffId && rooms.updatedAt == audit.createdAt;
+    }
+    function dayAuditLinked(audit, facilityId) {
+      let day = getAfter(/databases/$(database)/documents/facilities/$(facilityId)/dailyOperations/$(audit.date)).data;
+      return operationDate(audit.date) && day.lastAuditId == audit.id && day.revision == audit.dayRevision
+        && day.updatedBy == audit.staffId && day.updatedAt == audit.createdAt
+        && ((audit.action == 'day_saved' && audit.planId == null && audit.roomsRevision == null && audit.sourcePlanId == day.latestPlanId)
+          || (audit.action in ['recalculated', 'confirmed', 'rejected'] && planAuditLinked(audit, facilityId, day.latestPlanId)));
+    }
+    function planAuditLinked(audit, facilityId, planId) {
+      let plan = getAfter(/databases/$(database)/documents/facilities/$(facilityId)/operationPlans/$(planId)).data;
+      return audit.planId == planId && plan.lastAuditId == audit.id
+        && plan.date == audit.date && plan.staffId == audit.staffId && plan.updatedAt == audit.createdAt
+        && plan.reason == audit.reason && plan.roomsRevision == audit.roomsRevision
+        && (audit.action == 'recalculated'
+          ? (plan.status == 'proposed' && plan.sourcePlanId == audit.sourcePlanId)
+          : (plan.status == audit.action && audit.sourcePlanId == planId));
+    }
+
     function validPublicRegistrationInvite(data) {
       return data.keys().hasOnly(['active', 'facilityId'])
         && data.active == true
@@ -281,6 +451,34 @@ service cloud.firestore {
         allow list: if isActiveFacility(facilityId) && request.query.limit != null && request.query.limit <= 26;
         allow create, update: if isActiveFacility(facilityId) && validPet(request.resource.data);
         allow delete: if false;
+      }
+      match /dailyOperations/{date} {
+        allow get: if isActiveFacility(facilityId);
+        allow list, delete: if false;
+        allow create: if isActiveFacility(facilityId) && validDay(request.resource.data, facilityId, date)
+          && request.resource.data.revision == 1 && request.resource.data.latestPlanId == null
+          && getAfter(/databases/$(database)/documents/facilities/$(facilityId)/operationAudit/$(request.resource.data.lastAuditId)).data.action == 'day_saved';
+        allow update: if isActiveFacility(facilityId) && validDayChange(request.resource.data, facilityId, date);
+      }
+      match /settings/rooms {
+        allow get: if isActiveFacility(facilityId);
+        allow list, delete: if false;
+        allow create: if isActiveFacility(facilityId) && validRoomSettings(request.resource.data, facilityId) && request.resource.data.revision == 1;
+        allow update: if isActiveFacility(facilityId) && validRoomSettings(request.resource.data, facilityId)
+          && request.resource.data.revision == resource.data.revision + 1;
+      }
+      match /operationPlans/{planId} {
+        allow get: if isActiveFacility(facilityId);
+        allow list: if isActiveFacility(facilityId) && request.query.limit != null && request.query.limit <= 100;
+        allow create: if isActiveFacility(facilityId) && createOperationPlan(request.resource.data, facilityId, planId);
+        allow update: if isActiveFacility(facilityId) && updateOperationPlan(request.resource.data, facilityId, planId);
+        allow delete: if false;
+      }
+      match /operationAudit/{auditId} {
+        allow get: if isActiveFacility(facilityId);
+        allow list: if isActiveFacility(facilityId) && request.query.limit != null && request.query.limit <= 100;
+        allow create: if isActiveFacility(facilityId) && validOperationAudit(request.resource.data, facilityId, auditId);
+        allow update, delete: if false;
       }
       match /demoIntakes/{intakeId} {
         allow create: if validIntake(request.resource.data, intakeId, facilityId)
