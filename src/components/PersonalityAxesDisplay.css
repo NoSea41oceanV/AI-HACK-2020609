@@ -1,0 +1,14 @@
+.personality-axes { margin-top: 18px; color: #38433b; }
+.personality-axes h3 { margin: 0 0 12px; color: #385846; font-size: 13px; }
+.personality-axes__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
+.personality-axes__row { display: grid; grid-template-columns: 60px minmax(36px, 1fr) 46px; align-items: center; gap: 7px; font-size: 11px; }
+.personality-axes__row b { text-align: right; font-size: 12px; }
+.personality-axes__row small { color: #7e857d; font-size: 9px; font-weight: 400; }
+.personality-axes__row meter { width: 100%; height: 10px; border: 0; border-radius: 99px; background: #e8e4da; }
+.personality-axes__row meter::-webkit-meter-bar { border: 0; background: #e8e4da; }
+.personality-axes__row meter::-webkit-meter-optimum-value { background: #5f8068; border-radius: 99px; }
+.personality-axes__row meter::-moz-meter-bar { background: #5f8068; border-radius: 99px; }
+.personality-axes > p { margin: 12px 0 0; color: #6e766c; font-size: 10px; line-height: 1.7; }
+.personality-axes__missing { padding: 14px; background: #f5f1e8; border: 1px solid #e6dfd1; border-radius: 10px; }
+.owner-analysis-card .personality-axes__grid { grid-template-columns: 1fr; }
+@media (max-width: 600px) { .personality-axes__grid { grid-template-columns: 1fr; } }
