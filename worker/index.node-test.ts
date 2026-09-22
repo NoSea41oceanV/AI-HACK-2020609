@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { handleRequest, type Env } from "./index.ts";
+import { STRUCTURED_INTAKE_OPTIONS } from "../src/domain/structuredIntake.ts";
 
 const context = { waitUntil: (_promise: Promise<unknown>) => undefined };
 const origin = "http://localhost:5173";
@@ -42,6 +43,50 @@ const validProfile = {
   playStyle: "追いかけっこ",
   precautions: "大きな音には慎重",
 };
+
+const structuredAnswers = () => ({
+  ...Object.fromEntries(Object.entries(STRUCTURED_INTAKE_OPTIONS).map(([key, options]) => [key, options[0]])),
+  medicalHistory: "なし", sensoryJointConcerns: "なし", troubleHistory: "なし",
+});
+const axes = { extraversion: 12, sociability: 34, neuroticism: 56, trainability: 78, resourceGuarding: 90, assertiveness: 23, resilience: 45 };
+
+test("structured-only analysis sends answers and returns the exact generated seven axes", async () => {
+  let captured: any;
+  const response = await handleRequest(analyzeRequest({ profile: { personality: "", playStyle: "", structured: structuredAnswers() } }), { ORCAROUTER_API_KEY: "test-secret" }, context, async (_url, init) => {
+    captured = JSON.parse(String(init?.body));
+    return Response.json({ choices: [{ message: { content: JSON.stringify({ ...validAnalysis, personalityAxes: axes }) } }] });
+  });
+  assert.equal(response.status, 200);
+  const payload: any = await response.json();
+  assert.deepEqual(payload.analysis.personalityAxes, axes);
+  assert.deepEqual(payload.analysis.matchingProfile.personalityAxes, axes);
+  assert.match(captured.messages[0].content, /trainability/);
+  assert.match(captured.messages[1].content[0].text, /混合ワクチン証明: 提出済み・有効/);
+});
+
+test("structured input rejects unknown keys, missing answers and private health/history text before upstream", async () => {
+  let called = false;
+  for (const structured of [
+    { ...structuredAnswers(), ownerName: "unexpected" },
+    { ...structuredAnswers(), heat: undefined },
+    { ...structuredAnswers(), medicalHistory: "連絡先: private@example.test" },
+    { ...structuredAnswers(), sensoryJointConcerns: "電話: 090-1234-5678" },
+    { ...structuredAnswers(), troubleHistory: "音声を分析" },
+    { ...structuredAnswers(), medicalHistory: "x".repeat(1001) },
+  ]) {
+    const response = await handleRequest(analyzeRequest({ profile: { ...validProfile, structured } }), { ORCAROUTER_API_KEY: "test-secret" }, context, async () => { called = true; return Response.json({}); });
+    assert.equal(response.status, 400);
+  }
+  assert.equal(called, false);
+});
+
+test("structured analysis rejects missing, fractional, out-of-range and extra axes", async () => {
+  for (const personalityAxes of [undefined, { ...axes, resilience: undefined }, { ...axes, resilience: 101 }, { ...axes, resilience: 1.5 }, { ...axes, extra: 50 }]) {
+    const response = await handleRequest(analyzeRequest({ profile: { ...validProfile, structured: structuredAnswers() } }), { ORCAROUTER_API_KEY: "test-secret" }, context, async () => Response.json({ choices: [{ message: { content: JSON.stringify({ ...validAnalysis, personalityAxes }) } }] }));
+    assert.equal(response.status, 502);
+    assert.equal((await response.json() as any).error.code, "invalid_model_response");
+  }
+});
 
 test("health reports that media persistence is disabled", async () => {
   const response = await handleRequest(new Request("https://worker.test/health"), {}, context);

@@ -4,6 +4,7 @@ import type { Auth } from "firebase/auth";
 import { createIntakeRepository } from "./index";
 import { LocalIntakeRepository } from "./localIntakeRepository";
 import { isOwnerIntake, type OwnerIntake } from "./intakeRepository";
+import { STRUCTURED_INTAKE_OPTIONS, type StructuredIntakeAnswers } from "../domain/structuredIntake";
 
 const { getFirebaseDbMock, getFirebaseAuthMock } = vi.hoisted(() => ({ getFirebaseDbMock: vi.fn(), getFirebaseAuthMock: vi.fn() }));
 
@@ -57,6 +58,27 @@ describe("createIntakeRepository", () => {
 });
 
 describe("LocalIntakeRepository", () => {
+  it("round-trips structured answers and consent while retaining unanswered legacy data", async () => {
+    const repository = new LocalIntakeRepository(memoryStorage());
+    const structured = { ...Object.fromEntries(Object.entries(STRUCTURED_INTAKE_OPTIONS).map(([key, options]) => [key, options[0]])), medicalHistory: "なし", sensoryJointConcerns: "なし", troubleHistory: "なし" } as StructuredIntakeAnswers;
+    const item = intake("structured");
+    item.pet.structured = structured;
+    expect(isOwnerIntake(item)).toBe(false);
+    item.consent = { version: "2026-09", accepted: true, acceptedAt: "2026-09-22T00:00:00.000Z" };
+    await repository.save(item);
+    expect(await repository.get(item.id)).toEqual(item);
+    expect(isOwnerIntake({ ...item, pet: { ...item.pet, structured: { ...structured, heat: "unknown" } } })).toBe(false);
+    await repository.save(intake("legacy"));
+    expect((await repository.get("legacy"))?.pet).not.toHaveProperty("structured");
+    expect(await repository.get("legacy")).not.toHaveProperty("consent");
+    const axes = { extraversion: 12, sociability: 34, neuroticism: 56, trainability: 78, resourceGuarding: 90, assertiveness: 23, resilience: 45 };
+    const matchingProfile = { energyLevel: 3, sociability: 3, anxietyLevel: 3, assertiveness: 3, resourceGuarding: 1, playStyles: [], hardBlockedPetIds: [], personalityAxes: axes };
+    const analyzed = { ...item, status: "ready", matchingProfile, aiAnalysis: { summary: "分析", observations: [], personalityTraits: [], compatibilitySignals: [], riskFlags: [], confidence: 0.7, personalityAxes: axes, matchingProfile } };
+    expect(isOwnerIntake(analyzed)).toBe(true);
+    expect(isOwnerIntake({ ...analyzed, aiAnalysis: { ...analyzed.aiAnalysis, personalityAxes: undefined } })).toBe(false);
+    expect(isOwnerIntake({ ...analyzed, matchingProfile: { ...matchingProfile, personalityAxes: { ...axes, resilience: 46 } } })).toBe(false);
+    expect(isOwnerIntake({ ...analyzed, matchingProfile: { ...matchingProfile, personalityAxes: { ...axes, trainability: 50.5 } } })).toBe(false);
+  });
   it("saves, gets, and replaces one intake", async () => {
     const repository = new LocalIntakeRepository(memoryStorage());
     await repository.save(intake("one"));
