@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserSessionPersistence } from 'firebase/auth'
 import './App.css'
 import ObservationPanel, { type ObservationSubmission } from './components/ObservationPanel'
@@ -140,7 +140,10 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
   const dashboardPairs = useMemo(() => matchingResult ? toDashboardPairs(matchingResult, pets) : [], [matchingResult, pets])
   const dashboardRooms = useMemo(() => matchingResult ? toDashboardRooms(matchingResult, rooms) : [], [matchingResult, rooms])
 
+  const refreshPromise = useRef<Promise<DomainPetProfile[]> | null>(null)
   const loadPets = useCallback(async () => {
+    if (refreshPromise.current) return refreshPromise.current
+    const pending = (async () => {
     const configurationError = firebaseConfigurationError()
     if (configurationError) {
       setDataState('error')
@@ -171,6 +174,10 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
       setStatus({ tone: 'error', message: `${message} 「登録情報を更新」を押して再試行してください。` })
       throw error
     }
+
+    })()
+    refreshPromise.current = pending
+    try { return await pending } finally { refreshPromise.current = null }
   }, [])
 
   useEffect(() => {

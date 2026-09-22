@@ -446,18 +446,18 @@
   justify-content: center;
   gap: 24px;
   color: #fff;
-  background: var(--owner-coral);
+  background: var(--owner-sage-700);
   border: 0;
   border-radius: 999px;
-  box-shadow: 0 10px 25px rgba(237, 118, 95, 0.24);
+  box-shadow: 0 10px 25px rgba(47, 150, 111, 0.18);
   cursor: pointer;
   font: 800 14px/1.4 "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
   transition: background-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
 .owner-submit-button:hover:not(:disabled) {
-  background: var(--owner-coral-dark);
-  box-shadow: 0 13px 28px rgba(216, 96, 75, 0.3);
+  background: var(--owner-sage-600);
+  box-shadow: 0 13px 28px rgba(47, 150, 111, 0.24);
   transform: translateY(-2px);
 }
 
