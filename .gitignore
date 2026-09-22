@@ -1,0 +1,33 @@
+# Local environment values; examples must contain dummy values only.
+.env
+.env.*
+!.env.example
+
+# Reserved secret/credential locations and private key bundles.
+secrets/
+credentials/
+*.key
+*.p12
+*.pfx
+
+# Dependencies, generated output, cache, and temporary directories.
+/node_modules/
+/build/
+/dist/
+/coverage/
+/.cache/
+/.agents/
+/tmp/
+/output/pawpair-pitch/
+*.tsbuildinfo
+*.log
+
+# Firebase and Cloudflare local state/secrets.
+/.firebase/
+/.wrangler/
+wrangler.toml
+
+# OS-generated metadata.
+.DS_Store
+Thumbs.db
+Desktop.ini

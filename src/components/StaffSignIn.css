@@ -1,0 +1,18 @@
+.staff-sign-in { min-height:100vh; box-sizing:border-box; display:grid; place-items:center; padding:28px 20px; background:#fffaf4; color:#17324f; font-family:"Noto Sans JP","Yu Gothic UI",sans-serif; }
+.staff-sign-in__card { box-sizing:border-box; width:min(100%,460px); padding:clamp(24px,5vw,42px); background:#fffefb; border:1px solid #eadfce; border-radius:28px; box-shadow:0 18px 45px rgba(94,70,37,.08); }
+.staff-sign-in__brand { color:#2f6fb0; font-size:18px; font-weight:800; letter-spacing:.06em; }
+.staff-sign-in h1 { margin:22px 0 10px; font-size:26px; line-height:1.4; }
+.staff-sign-in p { color:#6f7f8f; font-size:14px; line-height:1.8; }
+.staff-sign-in form { display:grid; gap:10px; margin-top:26px; }
+.staff-sign-in label { font-size:14px; font-weight:700; }
+.staff-sign-in input { box-sizing:border-box; min-width:0; width:100%; min-height:48px; padding:11px 14px; margin-bottom:10px; border:1px solid #ddcfbb; border-radius:12px; background:#fff; font:inherit; font-size:16px; }
+.staff-sign-in button { min-height:48px; margin-top:8px; padding:12px 18px; border:0; border-radius:14px; background:#247b5c; color:white; font:inherit; font-size:15px; font-weight:700; cursor:pointer; transition:transform .18s ease,background .18s ease; }
+.staff-sign-in button:hover { background:#2f966f; transform:translateY(-1px); }
+.staff-sign-in button:disabled { opacity:.65; cursor:wait; transform:none; }
+.staff-sign-in :focus-visible { outline:3px solid #2f6fb0; outline-offset:3px; }
+.staff-sign-in .staff-sign-in__error { margin:0; padding:12px; color:#943e38; background:#fff0ee; border-radius:12px; }
+.staff-sign-in .staff-sign-in__help { margin:26px 0 0; padding-top:20px; border-top:1px solid #eadfce; font-size:12px; }
+@media(prefers-reduced-motion:reduce) { .staff-sign-in button { transition:none; } }
+.staff-selection__list { display:grid; gap:10px; margin-top:20px; }
+.staff-selection__list button { margin:0; overflow-wrap:anywhere; }
+.staff-sign-in .staff-selection__sign-out { background:transparent; color:#2f6fb0; border:1px solid #ddcfbb; width:100%; margin-top:20px; font-size:12px; }

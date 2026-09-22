@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "operationAudit",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "date", "order": "ASCENDING" },
+        { "fieldPath": "dayRevision", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "demoObservations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "source", "order": "ASCENDING" },
+        { "fieldPath": "observedAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

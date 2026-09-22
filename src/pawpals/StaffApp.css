@@ -1,0 +1,236 @@
+.pawpals-app button:focus-visible,
+.pawpals-app select:focus-visible,
+.pawpals-app [role="button"]:focus-visible {
+  outline: 3px solid rgba(95, 128, 104, .35);
+  outline-offset: 2px;
+}
+
+.pawpals-app button:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.pawpals-header-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pawpals-owner-layout {
+  align-items: start;
+}
+
+.pawpals-owner-guide {
+  display: grid;
+  gap: 20px;
+}
+
+.pawpals-invite-card .staff-invite {
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+}
+
+.pawpals-empty {
+  padding: 28px 14px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.pawpals-empty b {
+  color: var(--deep);
+  font-size: 13px;
+}
+
+.pawpals-empty p {
+  margin: 7px 0 0;
+}
+
+.pawpals-avatar-image {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
+}
+
+.pawpals-field {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 16px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.pawpals-reasons {
+  margin: 7px 0 0;
+  padding-left: 18px;
+}
+
+.score-breakdown div {
+  grid-template-columns: 1fr 48px 34px;
+}
+
+.score-breakdown em {
+  font-size: 8px;
+  text-align: right;
+}
+
+.ai-seven-axis-evidence {
+  margin: 16px 0 12px;
+  padding: 14px;
+  border: 1px solid #c9d9cb;
+  border-radius: 14px;
+  background: #eef5ef;
+}
+
+.ai-seven-axis-evidence--fallback {
+  border-color: var(--line);
+  background: #f6f2e9;
+}
+
+.ai-seven-axis-evidence__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ai-seven-axis-evidence__head h3 {
+  margin: 2px 0 0;
+}
+
+.ai-seven-axis-evidence__head > strong {
+  color: var(--deep);
+  font: 24px Georgia, serif;
+  white-space: nowrap;
+}
+
+.ai-seven-axis-evidence__head > strong small {
+  color: var(--muted);
+  font: 10px sans-serif;
+}
+
+.ai-seven-axis-evidence > p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.ai-seven-axis-breakdown {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.ai-seven-axis-breakdown > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 9px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .68);
+  font-size: 10px;
+}
+
+.ai-seven-axis-breakdown b {
+  color: var(--deep);
+  white-space: nowrap;
+}
+
+.pawpals-table-wrap {
+  overflow-x: auto;
+}
+
+.pawpals-row-active {
+  background: #f4f8f1;
+}
+
+.pawpals-row-button {
+  border: 1px solid #dce5d9;
+  border-radius: 8px;
+  padding: 5px 8px;
+  background: #eef2ec;
+  color: var(--deep);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.pawpals-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.pawpals-loop-fragment {
+  display: contents;
+}
+
+.agent-layout,
+.agent-layout > *,
+.pawpals-observation-shell {
+  min-width: 0;
+}
+
+.loop {
+  max-width: 100%;
+}
+
+.agent-log p,
+.event p {
+  overflow-wrap: anywhere;
+}
+
+.pawpals-observation-shell {
+  margin-top: 16px;
+}
+
+.pawpals-agent-note {
+  margin: 0 0 16px;
+}
+
+.pawpals-observation-shell .observation-panel {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+}
+
+.node:focus {
+  outline: none;
+}
+
+.node:focus circle {
+  stroke: var(--deep);
+  stroke-width: 7;
+}
+
+@media (max-width: 600px) {
+  .pawpals-header-meta {
+    max-width: 50%;
+  }
+
+  .score-breakdown div {
+    grid-template-columns: 1fr 46px 32px;
+  }
+
+  .ai-seven-axis-breakdown {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-layout .loop {
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+  }
+}
