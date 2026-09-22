@@ -30,20 +30,22 @@ function text(s,t,x,y,w,h,size=30,color=colors.ink,bold=false){
 function slide(title,num,seconds,script,refs='',dark=false){
  const s=p.slides.add(); s.background.fill=dark?colors.ink:colors.bg;
  text(s,title,64,52,1152,100,44,dark?'#FFFFFF':colors.ink,true);
- text(s,`${num<=5?'PawPals':'質疑応答用'}  /  ${String(num).padStart(2,'0')}`,64,678,650,24,16,dark?'#CDDFD3':colors.gray);
+ text(s,`${num<=5?'PAWLAND':'質疑応答用'}  /  ${String(num).padStart(2,'0')}`,64,678,650,24,16,dark?'#CDDFD3':colors.gray);
  s.speakerNotes.textFrame.setText(`${seconds?`目安 ${seconds}秒\n`:''}${script}\n\n根拠・注記\n${refs}`);
  notes.push({num,title,seconds,script,refs});return s;
 }
 
 // Main presentation: retain the original 220-second story, consolidate 9 into 5.
-let s=slide('PawPals｜犬の相性から、今日の部屋割りへ',1,50,
-'「この子たち、同じ部屋で大丈夫？」ペットホテルでは、性格も、その日の様子も違う犬たちの組み合わせを考えます。PawPalsは、その判断を支える相性評価・部屋割り支援です。スタッフが犬と向き合う時間を増やすことを目指します。飼い主が性格や遊び方を入力すると、OrcaRouter経由のAIが特徴を整理します。全てのペアを採点し、同室禁止と定員を守って部屋割りを提案。当日の観測を反映して再計算し、最後はスタッフが確定します。架空の二頭で、実際のAIと保存先を通した一連の動作が確認されています。',
-source.repo+'\n元資料1〜2を統合。製品名は現行509ab22の画面表記に合わせPawPalsへ更新。実サービスE2Eの記載は元資料の検証記録を維持。',true);
-text(s,'「この子たち、\n同じ部屋で大丈夫？」',64,186,1152,155,56,'#FFFFFF',true);
-text(s,'飼い主の入力 → OrcaRouterで特徴を整理',64,389,1152,64,34,'#CDDFD3');
-text(s,'全ペア評価 → 制約付きの部屋割り → 人が確定',64,472,1152,64,34,'#FFFFFF',true);
-text(s,'当日の観測で再提案。犬と向き合う時間を増やす。',64,559,1152,62,28,'#CDDFD3');
-text(s,'過去の実サービス確認：架空2頭・1ペア・1部屋。実施設での効果検証はこれから。',64,628,1152,32,18,'#CDDFD3');
+let s=slide('PAWLAND｜犬の相性から、今日の部屋割りへ',1,50,
+'「この子たち、同じ部屋で大丈夫？」ペットホテルでは、性格も、その日の様子も違う犬たちの組み合わせを考えます。PAWLANDは、その判断を支える相性評価・部屋割り支援です。スタッフが犬と向き合う時間を増やすことを目指します。飼い主が性格や遊び方を入力すると、OrcaRouter経由のAIが特徴を整理します。全てのペアを採点し、同室禁止と定員を守って部屋割りを提案。当日の観測を反映して再計算し、最後はスタッフが確定します。架空の二頭で、実際のAIと保存先を通した一連の動作が確認されています。',
+source.repo+'\n元資料1〜2を統合。正式名称はユーザー指定のPAWLAND。実サービスE2Eの記載は元資料の検証記録を維持。',true);
+text(s,'「この子たち、\n同じ部屋で大丈夫？」',64,180,545,145,43,'#FFFFFF',true);
+text(s,'飼い主の入力\n↓ OrcaRouterで特徴を整理\n全ペア評価・制約付きの部屋割り\n↓ スタッフが確認・確定',64,356,570,180,27,'#CDDFD3');
+text(s,'当日の観測で再提案。\n犬と向き合う時間を増やす。',64,557,570,68,25,'#FFFFFF',true);
+s.images.add({blob:await fs.readFile(path.join(root,'docs/presentation/assets/daily-operations-detail.png')),contentType:'image/png',alt:'実システム公開デモの今日の運営画面。架空6頭の部屋割り。',fit:'contain',position:{left:650,top:177,width:566,height:402}});
+text(s,'実システムの公開デモ画面（架空データ）',650,592,566,33,18,'#CDDFD3');
+text(s,'過去の実サービス確認：架空2頭・1ペア・1部屋。実施設での効果検証はこれから。',64,639,1152,27,18,'#CDDFD3');
+s.speakerNotes.textFrame.setText(notes[0].script+'\n\n'+notes[0].refs+'\n画面: https://pawpair-ai-hack-2026.web.app/demo 2026-09-22撮影。公開デモの架空6頭。ヘッダー外を撮影、内容未加工。');
 
 s=slide('評価5項目を、業務を任せるための設計に',2,75,
 'セキュリティでは、氏名・連絡先の専用項目と音声をAIへ送りません。動画は最大二枚の静止画とし、解析メディアは永続保存しません。現在は施設ログインと施設別データ分離も実装されています。信頼性では、AI出力を検査し、同室禁止と定員を別のルールで適用します。失敗を成功には見せません。コスト面は、AIを特徴の読み取りに絞り、全ペアの採点と最適化をプログラムで行う工夫です。費用の削減率はまだ実測していません。自律性は、特徴の整理から評価・部屋割りへ処理をつなぎ、当日の観測で再提案できる点。独創性は、相性をスコアで終わらせず、実際の配置案にする点です。今はスタッフが操作する半自律型で、最終判断は人に残します。',
@@ -82,7 +84,7 @@ applyPresentationChartFont(chart,{fontFamily:font});text(s,'有料稼働施設�
 text(s,'仮定：M1〜2は無償実証、月初契約、解約0。ARRは初年度の実売上ではない。',64,625,1152,36,20,colors.gray);
 
 s=slide('まず3施設で「毎日使える」を証明する',5,20,
-'次の一歩は三施設での実証です。認証と施設分離を含む運用を確認し、判断時間、提案の修正率、継続利用を測ります。その後、地域ホテルへの直接提案と紹介で広げます。将来は犬の保育園や多店舗運営へ。犬の安全を人が見守りながら、判断の準備をAIに任せる。それがPawPalsです。',
+'次の一歩は三施設での実証です。認証と施設分離を含む運用を確認し、判断時間、提案の修正率、継続利用を測ります。その後、地域ホテルへの直接提案と紹介で広げます。将来は犬の保育園や多店舗運営へ。犬の安全を人が見守りながら、判断の準備をAIに任せる。それがPAWLANDです。',
 '元資料9と12販売計画を統合。3施設の実証先は未合意。600接触→150デモ→75試用→50契約、販売10か月で平均60接触/月。目標であり実績ではない。課金・請求・利用枠・本番運用は今後。施設認証/分離の実装済み状態は現行509ab22に更新。',true);
 text(s,'0〜2か月',64,184,282,62,34,'#CDDFD3',true);
 text(s,'本番運用を確認し、3施設で実証\n判断時間・修正率・AI原価・支払い意思を測定',367,184,849,105,31,'#FFFFFF');
@@ -110,7 +112,7 @@ text(s,'過去の記録：アプリ34件・Worker15件成功。実サービスE2
 const candidatePath=path.join(tmp,'candidate.pptx');
 await (await PresentationFile.exportPptx(p)).save(candidatePath);
 const contracts=[{slide:6,table:1,label_column:0,total_row:5,value_columns:Array.from({length:12},(_,i)=>i+1),component_rows:[3,4]},{slide:7,table:1,label_column:0,total_row:5,value_columns:[1],component_rows:[1,2,3,4]}];
-const finalPath=path.join(out,process.env.PITCH_FILENAME??'PawPals_発表資料_7枚版.pptx');
+const finalPath=path.join(out,process.env.PITCH_FILENAME??'PAWLAND_発表資料_実画面版.pptx');
 await finalizePresentation({workspaceDir:path.resolve(root,'../..'),candidatePath,finalPath,pythonExecutable:python,integrityValidatorPath:path.join(skill,'container_tools/inspect_presentation_package_integrity.py'),layoutValidatorPath:path.join(skill,'container_tools/inspect_presentation_layout_geometry.py'),layoutArgs:['--expected-slide-size-emu','12192000,6858000','--validate-bullet-geometry','--validate-heading-fit',...[2,6,7].flatMap(n=>['--require-native-table-slide',String(n)])],explicitTotalSlideCount:7,requiredNativeTableOwnerSlides:[2,6,7],requiredNativeChartOwnerSlides:[4],tableArithmeticContracts:contracts,materializeLiteralChartWorkbooks:true,fontPolicy:{basis:'design',families:[font]},verifyArtifactToolImport:true,receiptPath:path.join(tmp,path.basename(finalPath)+'.validation.json')});
 const checked=await PresentationFile.importPptx(await FileBlob.load(finalPath));
 for(let i=0;i<checked.slides.items.length;i++){
@@ -118,9 +120,9 @@ for(let i=0;i<checked.slides.items.length;i++){
  await fs.writeFile(path.join(tmp,`final-${i+1}.png`),new Uint8Array(await blob.arrayBuffer()));
 }
 let elapsed=0;
-const script='# PawPals 発表原稿・7枚版\n\n本編5枚＋補足2枚。発表目安3分40秒（220秒）。前版13枚の内容を統合し、評価5項目・市場・料金・売上・原価・販売計画・今後の展望を保持。最新コード509ab22に合わせ製品名と認証・施設分離の状態を更新。\n\n'+notes.filter(n=>n.num<=5).map(n=>{let begin=elapsed;elapsed+=n.seconds;return `## ${n.num}. ${n.title}（${begin}〜${elapsed}秒）\n\n${n.script}\n`;}).join('\n')+'\n## 旧版との対応\n\n|新版|旧版|内容|\n|---|---|---|\n|1|1・2|課題、製品、業務フロー、E2E範囲|\n|2|3・4・5・13|評価5項目、強み、検証課題|\n|3|6・7|市場、価格、ROIと仮定|\n|4|8|初年度売上、契約数、損益|\n|5|9・12|実証、販売計画、今後の展望|\n|6|10・12|全12か月、3シナリオ|\n|7|11・13|原価、採算、検証記録の範囲|\n\n## 根拠\n\n'+Object.values(source).join('\n\n')+'\n\n価格・市場対象比率・売上・原価・時間短縮は提案仮説。元資料の過去テスト記録と現行コードを混同しない。認証・施設分離は現行コードに存在するが、課金・本番運用は今後。\n';
+const script='# PAWLAND 発表原稿・7枚版\n\n本編5枚＋補足2枚。発表目安3分40秒（220秒）。前版13枚の内容を統合し、評価5項目・市場・料金・売上・原価・販売計画・今後の展望を保持。正式名称PAWLAND。公開デモの実画面を掲載し、認証・施設分離は509ab22での確認を保持。\n\n'+notes.filter(n=>n.num<=5).map(n=>{let begin=elapsed;elapsed+=n.seconds;return `## ${n.num}. ${n.title}（${begin}〜${elapsed}秒）\n\n${n.script}\n`;}).join('\n')+'\n## 旧版との対応\n\n|新版|旧版|内容|\n|---|---|---|\n|1|1・2|課題、製品、業務フロー、E2E範囲|\n|2|3・4・5・13|評価5項目、強み、検証課題|\n|3|6・7|市場、価格、ROIと仮定|\n|4|8|初年度売上、契約数、損益|\n|5|9・12|実証、販売計画、今後の展望|\n|6|10・12|全12か月、3シナリオ|\n|7|11・13|原価、採算、検証記録の範囲|\n\n## 根拠\n\n'+Object.values(source).join('\n\n')+'\n\n価格・市場対象比率・売上・原価・時間短縮は提案仮説。元資料の過去テスト記録と現行コードを混同しない。認証・施設分離は現行コードに存在するが、課金・本番運用は今後。\n';
 await fs.writeFile(path.join(root,'docs/presentation/speaker-notes-short.md'),script);
-await fs.writeFile(path.join(out,'PawPals_発表原稿_7枚版.md'),script);
+await fs.writeFile(path.join(out,'PAWLAND_発表原稿_7枚版.md'),script);
 console.log('Created 7 slides, notes, final renders');
 function table(s,values,x,y,w,h,widths,size=23){
  const t=s.tables.add({rows:values.length,columns:values[0].length,left:x,top:y,width:w,height:h,values,columnWidths:widths});

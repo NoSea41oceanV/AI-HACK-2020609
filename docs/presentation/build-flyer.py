@@ -1,4 +1,4 @@
-"""Generate the one-page PawPals sales flyer as an A4 PDF."""
+"""Generate the one-page PAWLAND sales flyer as an A4 PDF."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import argparse
 from io import BytesIO
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageStat
 from reportlab.lib.colors import HexColor
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
@@ -73,28 +73,43 @@ def draw_text(c: canvas.Canvas, text: str, x: float, y: float, size: float,
     return cursor
 
 
-def fit_image_cover(c: canvas.Canvas, path: Path, x: float, y: float, w: float, h: float,
-                    radius: float = 0) -> None:
+def fit_image_contain(c: canvas.Canvas, path: Path, x: float, y: float, w: float, h: float,
+                      radius: float = 0, background=WHITE,
+                      source_region: tuple[int, int, int, int] | None = None) -> None:
+    """Draw a screenshot region by PDF clipping, preserving the source image and ratio."""
     image = Image.open(path).convert("RGB")
-    target_ratio = w / h
-    image_ratio = image.width / image.height
-    if image_ratio > target_ratio:
-        crop_w = int(image.height * target_ratio)
-        left = (image.width - crop_w) // 2
-        image = image.crop((left, 0, left + crop_w, image.height))
+    channel_spread = max(high - low for low, high in ImageStat.Stat(image).extrema)
+    if channel_spread < 8:
+        raise ValueError(f"Screenshot appears blank or nearly blank: {path}")
+    region_x, region_y, region_w, region_h = source_region or (0, 0, image.width, image.height)
+    if (region_x < 0 or region_y < 0 or region_w <= 0 or region_h <= 0
+            or region_x + region_w > image.width or region_y + region_h > image.height):
+        raise ValueError(f"Screenshot region is outside the image: {path} {source_region}")
+    image_ratio = region_w / region_h
+    frame_ratio = w / h
+    if image_ratio > frame_ratio:
+        region_draw_w = w
+        region_draw_h = w / image_ratio
     else:
-        crop_h = int(image.width / target_ratio)
-        top = (image.height - crop_h) // 2
-        image = image.crop((0, top, image.width, top + crop_h))
+        region_draw_h = h
+        region_draw_w = h * image_ratio
+    scale = region_draw_w / region_w
+    region_draw_x = x + (w - region_draw_w) / 2
+    region_draw_y = y + (h - region_draw_h) / 2
+    draw_x = region_draw_x - region_x * scale
+    draw_y = region_draw_y - (image.height - region_y - region_h) * scale
+    draw_w = image.width * scale
+    draw_h = image.height * scale
     stream = BytesIO()
-    image.save(stream, format="JPEG", quality=94, optimize=True)
+    image.save(stream, format="PNG", optimize=True)
     stream.seek(0)
+    round_rect(c, x, y, w, h, radius, background, LINE)
     c.saveState()
     if radius:
         clip = c.beginPath()
         clip.roundRect(x, y, w, h, radius)
         c.clipPath(clip, stroke=0, fill=0)
-    c.drawImage(ImageReader(stream), x, y, width=w, height=h, mask="auto")
+    c.drawImage(ImageReader(stream), draw_x, draw_y, width=draw_w, height=draw_h, mask="auto")
     c.restoreState()
 
 
@@ -107,12 +122,18 @@ def pill(c: canvas.Canvas, x: float, y: float, text: str, fill=WHITE, color=GREE
     c.drawCentredString(x + w / 2, y + mm(2.45), text)
 
 
-def make_flyer(output_path: Path, repo_root: Path) -> None:
+def make_flyer(output_path: Path, repo_root: Path, screen_primary: Path,
+               screen_secondary: Path | None = None) -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    if not screen_primary.exists():
+        raise FileNotFoundError(f"Primary system screenshot not found: {screen_primary}")
+    screen_secondary = screen_secondary or screen_primary
+    if not screen_secondary.exists():
+        raise FileNotFoundError(f"Secondary system screenshot not found: {screen_secondary}")
     font_setup()
     c = canvas.Canvas(str(output_path), pagesize=A4, pageCompression=1)
-    c.setTitle("PawPals 営業チラシ")
-    c.setAuthor("PawPals")
+    c.setTitle("PAWLAND 営業チラシ")
+    c.setAuthor("PAWLAND")
     c.setSubject("ペットホテル向け AI 部屋割り支援")
 
     # Base and top accent
@@ -132,17 +153,20 @@ def make_flyer(output_path: Path, repo_root: Path) -> None:
     c.setFillColor(HexColor("#26654B"))
     c.circle(margin + mm(81), hero_y + mm(81), mm(30), fill=1, stroke=0)
 
-    draw_text(c, "PawPals", margin + mm(10), hero_y + mm(75), 15, WHITE, "JP-Bold")
+    draw_text(c, "PAWLAND", margin + mm(10), hero_y + mm(75), 15, WHITE, "JP-Bold")
     pill(c, margin + mm(49), hero_y + mm(70.5), "ペットホテル向け", MINT, GREEN_DARK, mm(36))
     draw_text(c, "部屋割りに悩む時間を、\n犬と向き合う時間へ。",
               margin + mm(10), hero_y + mm(56), 24, WHITE, "JP-Bold", 31)
     draw_text(c, "犬の特徴整理から、全ペアの相性評価、\nその日の部屋割り案までを一つに。",
               margin + mm(10), hero_y + mm(27), 10, HexColor("#DCECE4"), "JP", 15)
 
-    photo_x, photo_y, photo_w, photo_h = margin + mm(117), hero_y + mm(8), mm(57), mm(70)
-    fit_image_cover(c, repo_root / "public" / "sample-dog.png", photo_x, photo_y, photo_w, photo_h, mm(5))
-    round_rect(c, photo_x + mm(4), photo_y + mm(4), mm(45), mm(10), mm(5), HexColor("#FFFFFFE8"))
-    draw_text(c, "判断の準備を、AIと。", photo_x + mm(8), photo_y + mm(7.2), 8.4, GREEN_DARK, "JP-Bold")
+    screen_x, screen_y, screen_w, screen_h = margin + mm(111), hero_y + mm(16), mm(63), mm(54)
+    fit_image_contain(
+        c, screen_secondary, screen_x, screen_y, screen_w, screen_h, mm(4),
+        source_region=(348, 230, 1305, 925),
+    )
+    draw_text(c, "実システムの公開デモ画面（架空データ）",
+              screen_x, hero_y + mm(10), 5.6, HexColor("#DCECE4"), "JP")
 
     # Pain points
     title_y = hero_y - mm(10)
@@ -166,30 +190,14 @@ def make_flyer(output_path: Path, repo_root: Path) -> None:
     # Product story
     product_y, product_h = card_y - mm(76), mm(69)
     round_rect(c, margin, product_y, inner_w, product_h, mm(5), MINT_LIGHT, LINE)
-    visual_x, visual_y = margin + mm(6), product_y + mm(6)
-    visual_w, visual_h = mm(92), mm(56)
-    round_rect(c, visual_x, visual_y, visual_w, visual_h, mm(4), WHITE, LINE)
-    draw_text(c, "1頭ずつの情報から、\n部屋全体の組み合わせへ。",
-              visual_x + mm(7), visual_y + mm(43), 13, GREEN_DARK, "JP-Bold", 18)
-    portraits = [
-        repo_root / "public" / "breed-shiba.png",
-        repo_root / "public" / "breed-toy-poodle.png",
-        repo_root / "public" / "breed-golden-retriever.png",
-    ]
-    for index, portrait in enumerate(portraits):
-        px = visual_x + mm(7 + index * 21)
-        py = visual_y + mm(9)
-        fit_image_cover(c, portrait, px, py, mm(18), mm(18), mm(9))
-        c.setStrokeColor(WHITE)
-        c.setLineWidth(2)
-        c.circle(px + mm(9), py + mm(9), mm(9), fill=0, stroke=1)
-    c.setFillColor(GREEN)
-    c.setLineWidth(1.4)
-    c.line(visual_x + mm(68), visual_y + mm(18), visual_x + mm(78), visual_y + mm(18))
-    c.line(visual_x + mm(75), visual_y + mm(21), visual_x + mm(78), visual_y + mm(18))
-    c.line(visual_x + mm(75), visual_y + mm(15), visual_x + mm(78), visual_y + mm(18))
-    round_rect(c, visual_x + mm(79), visual_y + mm(8), mm(8), mm(20), mm(2), MINT)
-    draw_text(c, "部\n屋", visual_x + mm(81.3), visual_y + mm(20.5), 7.2, GREEN_DARK, "JP-Bold", 11)
+    visual_x, visual_y = margin + mm(6), product_y + mm(12)
+    visual_w, visual_h = mm(92), mm(48)
+    fit_image_contain(
+        c, screen_primary, visual_x, visual_y, visual_w, visual_h, mm(4),
+        source_region=(346, 151, 1308, 655),
+    )
+    draw_text(c, "実システムの公開デモ画面（架空データ）",
+              visual_x, product_y + mm(6.2), 5.8, MUTED, "JP")
 
     flow_x = margin + mm(105)
     draw_text(c, "情報から判断案まで、一本につなぐ", flow_x, product_y + mm(58), 11.3, GREEN_DARK, "JP-Bold")
@@ -237,7 +245,7 @@ def make_flyer(output_path: Path, repo_root: Path) -> None:
 
     draw_text(c, "提供内容・料金は計画段階です。正式な提供条件は導入前にご案内します。",
               margin, mm(7.8), 5.8, MUTED)
-    draw_text(c, "PawPals", PAGE_W - margin - mm(22), mm(7.8), 6.5, GREEN_DARK, "JP-Bold")
+    draw_text(c, "PAWLAND", PAGE_W - margin - mm(24), mm(7.8), 6.5, GREEN_DARK, "JP-Bold")
 
     c.showPage()
     c.save()
@@ -247,8 +255,17 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--repo-root", type=Path, default=Path(__file__).resolve().parents[2])
+    parser.add_argument("--screen-primary", type=Path, required=True,
+                        help="Full screenshot of the live PAWLAND public demo")
+    parser.add_argument("--screen-secondary", type=Path,
+                        help="Optional second screenshot; defaults to --screen-primary")
     args = parser.parse_args()
-    make_flyer(args.output.resolve(), args.repo_root.resolve())
+    make_flyer(
+        args.output.resolve(),
+        args.repo_root.resolve(),
+        args.screen_primary.resolve(),
+        args.screen_secondary.resolve() if args.screen_secondary else None,
+    )
 
 
 if __name__ == "__main__":
