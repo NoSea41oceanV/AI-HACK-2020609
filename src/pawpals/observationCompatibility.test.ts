@@ -6,6 +6,7 @@ import { createOptimalRoomPlan } from '../domain'
 import CompatibilityScreen from './CompatibilityScreen'
 import FriendMapScreen from './FriendMapScreen'
 import { formatRecordedAt, type DomainPetProfile } from './pawPalsModel'
+import type { PersonalityAxes } from '../domain/structuredIntake'
 
 const pet = (id: string, hardBlockedPetIds: string[] = []): DomainPetProfile => ({
   id, name: id.toUpperCase(), ageYears: 3, weightKg: 8, energyLevel: 3,
@@ -14,6 +15,10 @@ const pet = (id: string, hardBlockedPetIds: string[] = []): DomainPetProfile => 
 })
 const rooms = [{ id: 'a', name: 'A室', capacity: 2, minOccupancy: 0 }, { id: 'b', name: 'B室', capacity: 2, minOccupancy: 0 }]
 const onSelectPet = () => undefined
+const axes: PersonalityAxes = {
+  extraversion: 65, sociability: 72, neuroticism: 28, trainability: 80,
+  resourceGuarding: 15, assertiveness: 42, resilience: 76,
+}
 
 describe('daily compatibility views', () => {
   it('displays continuous compatibility percentages while preserving explicit blocks', () => {
@@ -40,6 +45,28 @@ describe('daily compatibility views', () => {
     expect(chart).not.toContain('>c<')
     expect(map).not.toContain('>c<')
     expect(map).toContain('1ペア')
+  })
+
+  it('shows the saved AI seven-axis contribution and its typed breakdown', () => {
+    const pets = [{ ...pet('a'), personalityAxes: axes }, { ...pet('b'), personalityAxes: { ...axes, extraversion: 55 } }]
+    const matchingResult = createOptimalRoomPlan(pets, rooms)
+    const chart = renderToStaticMarkup(createElement(CompatibilityScreen, { pets, matchingResult, selectedPetId: 'a', onSelectPet }))
+    expect(chart).toContain('7軸を相性計算に適用')
+    expect(chart).toContain('最大18点へ反映')
+    expect(chart).toContain('外向性の近さ')
+    expect(chart).toContain('神経質性 × 自己主張の安全性')
+    expect(chart).toContain('回復力の支え')
+    expect(chart).not.toContain('7軸はこの計算に未適用')
+  })
+
+  it('names the pet whose valid seven-axis data is missing without inventing values', () => {
+    const pets = [{ ...pet('a'), name: '七軸あり', personalityAxes: axes }, { ...pet('b'), name: '旧プロフィール' }]
+    const matchingResult = createOptimalRoomPlan(pets, rooms)
+    const chart = renderToStaticMarkup(createElement(CompatibilityScreen, { pets, matchingResult, selectedPetId: 'a', onSelectPet }))
+    expect(chart).toContain('7軸はこの計算に未適用')
+    expect(chart).toContain('旧プロフィールに保存済みの有効な7軸データがない')
+    expect(chart).toContain('既存プロフィールの6因子で計算')
+    expect(chart).not.toContain('七軸ありに保存済みの有効な7軸データがない')
   })
 })
 

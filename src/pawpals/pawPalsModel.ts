@@ -1,4 +1,5 @@
 import type {
+  AiSevenAxisEvaluation,
   MatchingResult,
   PairCompatibility,
   PetProfile as DomainPetProfile,
@@ -19,6 +20,19 @@ export const FACTOR_META: ReadonlyArray<{
   { key: 'sociability', label: '社交性', maximum: 15 },
   { key: 'emotionalBalance', label: '感情バランス', maximum: 10 },
   { key: 'resourceSafety', label: '資源防衛リスク', maximum: 10 },
+]
+
+export const AI_SEVEN_AXIS_META: ReadonlyArray<{
+  key: keyof AiSevenAxisEvaluation['contributionBreakdown']
+  label: string
+  maximum: number
+}> = [
+  { key: 'extraversionSimilarity', label: '外向性の近さ', maximum: 5 },
+  { key: 'sociabilitySimilarity', label: '社交性の近さ', maximum: 5 },
+  { key: 'neuroticismAssertivenessSafety', label: '神経質性 × 自己主張の安全性', maximum: 2.5 },
+  { key: 'trainabilitySupport', label: '訓練性の支え', maximum: 1 },
+  { key: 'resourceGuardingSafety', label: '資源防衛の安全性', maximum: 3 },
+  { key: 'resilienceSupport', label: '回復力の支え', maximum: 1.5 },
 ]
 
 const PLAY_STYLE_LABELS: Readonly<Record<DomainPetProfile['playStyles'][number], string>> = {

@@ -145,7 +145,7 @@ function DailyOperationsEditor({
       <div className="daily-results-grid">
         <section className="card daily-plan" aria-labelledby="daily-plan-title">
           <div className="card-top"><div><span className="eyebrow">03 · 編成とスタッフ確認</span><h2 id="daily-plan-title">当日のグループ編成案</h2></div><span className={`status ${awaitingApproval || (plan && !planMatchesSettings) ? 'warning' : ''}`}>{stateLabel}</span></div>
-          <div className="goal-box"><b>保存済みの{savedPetIds.length}頭・{roomSettings?.rooms.length ?? 0}室で計算</b><p>同室にできない組み合わせと定員を守り、6因子の相性スコアで部屋割りを提案します。</p></div>
+          <div className="goal-box"><b>保存済みの{savedPetIds.length}頭・{roomSettings?.rooms.length ?? 0}室で計算</b><p>同室にできない組み合わせと定員を守り、6因子と利用可能なAI 7軸を反映した相性スコアで部屋割りを提案します。</p></div>
           {unsaved ? <p className="daily-validation">預かり犬または部屋に未保存の変更があります。保存後に再計算・承認してください。</p> : null}
           {savedPetMissing ? <p className="daily-validation">保存済みの預かり犬に、登録情報を確認できない犬がいます。対象から外して保存してください。</p> : null}
           {plan && !planMatchesSettings ? <p className="daily-validation">この案の作成後に対象犬または部屋設定が更新されました。最新の設定で再計算してください。</p> : null}
