@@ -8,6 +8,7 @@ describe("Firebase Spark deployment configuration", () => {
     const config = JSON.parse(read("./firebase.json")) as Record<string, unknown>;
     expect(config).toHaveProperty("firestore.rules", "firestore.rules");
     expect(config).toHaveProperty("hosting.public", "dist");
+    expect(config).toHaveProperty("emulators.auth.port", 9099);
     expect(config).toHaveProperty("emulators.firestore.host", "127.0.0.1");
     expect(config).not.toHaveProperty("functions");
     expect(config).not.toHaveProperty("storage");
@@ -24,14 +25,26 @@ describe("Firebase Spark deployment configuration", () => {
     expect(headerValue("/assets/**", "Cache-Control")).toContain("immutable");
   });
 
-  it("keeps owner intake unreadable and denies every unspecified Firestore path", () => {
+  it("scopes management data by facility and keeps owner intake unreadable", () => {
     const rules = read("./firestore.rules");
     const intakeMatch = rules.match(/match \/demoIntakes\/\{intakeId\} \{([\s\S]*?)\n    \}/)?.[1] ?? "";
 
     expect(intakeMatch).toContain("allow create:");
-    expect(intakeMatch).toContain("allow read, update, delete: if false;");
+    expect(intakeMatch).toContain("allow get: if isActiveFacility(facilityId);");
+    expect(intakeMatch).toContain("allow update, delete: if false;");
+    expect(rules).toContain("match /facilities/{facilityId}");
+    expect(rules).toContain("request.auth.uid == facilityId");
+    expect(rules).toContain("data.id == intakeId && data.id == data.inviteId");
     expect(rules).toContain("match /{document=**}");
     expect(rules).toContain("allow read, write: if false;");
+  });
+
+  it("stores only a public facility marker and has no invite expiry", () => {
+    const rules = read("./firestore.rules");
+    expect(rules).toContain("data.keys().hasOnly(['active', 'facilityId'])");
+    expect(rules).toContain("data.keys().hasOnly(['staffId', 'createdAt'])");
+    expect(rules).not.toContain("expiresAt");
+    expect(rules).not.toContain("expiry");
   });
 
   it("stores media metadata only and matches the client and Worker byte limits", () => {
