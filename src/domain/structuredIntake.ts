@@ -1,11 +1,11 @@
 /** Answers use the exact labels in the PawPals reference form; no implicit defaults. */
 export const STRUCTURED_INTAKE_OPTIONS = {
   neuter: ["済み", "未実施"],
-  heat: ["いいえ", "はい"],
+  heat: ["はい", "いいえ"],
   mixedVaccine: ["提出済み・有効", "未提出", "期限切れ"],
   rabiesVaccine: ["提出済み・有効", "未提出", "期限切れ"],
   fleaTickPrevention: ["実施済み", "未実施"],
-  foodAllergy: ["なし", "あり"],
+  foodAllergy: ["あり", "なし"],
   multiDogExperience: ["なし", "現在もあり", "過去にあり"],
   facilityExperience: ["月に数回", "週に数回", "ほぼ利用なし"],
   puppySocialization: ["十分経験あり", "少なめ", "不明"],

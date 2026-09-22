@@ -3,7 +3,7 @@ import type { MatchingSnapshot, ObservationRecord } from '../data'
 import { isCurrentPlan, isCurrentProposed } from '../domain/dailyOperations'
 import type { DailyOperationDay, DailyOperationPlan, FacilityRoomSettings, OperationAuditEvent } from '../domain/dailyOperations'
 import type { DomainPetProfile, MatchingResult, RoomDefinition } from './pawPalsModel'
-import { formatRecordedAt, petById, roomName } from './pawPalsModel'
+import { formatRecordedAt, petById, petPhotoUrl, roomName } from './pawPalsModel'
 import './DailyOperations.css'
 
 export interface TodayScreenProps {
@@ -100,7 +100,7 @@ function DailyOperationsEditor({
   return (
     <section className="screen active daily-operations" aria-labelledby="today-screen-title" aria-busy={working}>
       <div className="page-title">
-        <div><span className="eyebrow">DAY CARE OPERATIONS</span><h1 id="today-screen-title">今日の運営</h1><p>預かり犬と部屋を準備して、スタッフの確認で編成を確定します。</p></div>
+        <div><span className="eyebrow">DAY CARE OPERATIONS</span></div>
         <label className="daily-date">運営日<input type="date" aria-label="運営日" value={operationDate} disabled={working} onChange={(event) => { if (event.target.value) onOperationDateChange(event.target.value) }} /></label>
       </div>
       {error ? <p className="daily-message daily-message-error" role="alert">{error}</p> : null}
@@ -114,11 +114,10 @@ function DailyOperationsEditor({
       <div className="daily-setup-grid">
         <section className="card" aria-labelledby="daily-pets-title">
           <div className="card-top"><div><span className="eyebrow">01 · 預かりの準備</span><h2 id="daily-pets-title">当日の預かり犬</h2></div><span className={`status ${petsDirty || !day ? 'warning' : ''}`}>{petsDirty ? '未保存の変更' : day ? '保存済み' : '未保存'}</span></div>
-          <p className="daily-help">{operationDate} に預かる犬を、登録済みの{pets.length}頭から選びます。</p>
           <div className="daily-pet-list">
             {pets.map((pet) => <label className={`daily-pet-option ${selectedIds.has(pet.id) ? 'is-selected' : ''}`} key={pet.id}>
               <input type="checkbox" checked={selectedIds.has(pet.id)} disabled={working} onChange={(event) => setSelectedPetIds((previous) => event.target.checked ? [...previous, pet.id] : previous.filter((id) => id !== pet.id))} />
-              <span><b>{pet.name}</b><small>{pet.breed || '犬種未登録'} · {pet.weightKg} kg</small></span>
+              <img className="daily-pet-photo" src={petPhotoUrl(pet)} alt="" /><span><b>{pet.name}</b><small>{pet.breed || '犬種未登録'} · {pet.weightKg} kg</small></span>
             </label>)}
             {pets.length === 0 ? <p className="daily-help">登録済みの犬はいません。プロフィールを登録してから選択してください。</p> : null}
           </div>
@@ -128,7 +127,6 @@ function DailyOperationsEditor({
         </section>
         <section className="card" aria-labelledby="daily-rooms-title">
           <div className="card-top"><div><span className="eyebrow">02 · 施設の設定</span><h2 id="daily-rooms-title">部屋と定員</h2></div><span className={`status ${roomsDirty || !roomSettings ? 'warning' : ''}`}>{roomsDirty ? '未保存の変更' : roomSettings ? '保存済み' : '未保存'}</span></div>
-          <p className="daily-help">施設共通の設定です。空室を許可する部屋の最低頭数は0にします。</p>
           <div className="daily-room-list">
             {roomDraft.map((room, index) => <div className="daily-room-editor" key={room.id}>
               <label>部屋名<input aria-label={`部屋${index + 1}の名前`} value={room.name} disabled={working} maxLength={80} onChange={(event) => updateRoom(room.id, { name: event.target.value })} /></label>
@@ -145,12 +143,11 @@ function DailyOperationsEditor({
       <div className="daily-results-grid">
         <section className="card daily-plan" aria-labelledby="daily-plan-title">
           <div className="card-top"><div><span className="eyebrow">03 · 編成とスタッフ確認</span><h2 id="daily-plan-title">当日のグループ編成案</h2></div><span className={`status ${awaitingApproval || (plan && !planMatchesSettings) ? 'warning' : ''}`}>{stateLabel}</span></div>
-          <div className="goal-box"><b>保存済みの{savedPetIds.length}頭・{roomSettings?.rooms.length ?? 0}室で計算</b><p>同室にできない組み合わせと定員を守り、6因子と利用可能なAI 7軸を反映した相性スコアで部屋割りを提案します。</p></div>
           {unsaved ? <p className="daily-validation">預かり犬または部屋に未保存の変更があります。保存後に再計算・承認してください。</p> : null}
           {savedPetMissing ? <p className="daily-validation">保存済みの預かり犬に、登録情報を確認できない犬がいます。対象から外して保存してください。</p> : null}
           {plan && !planMatchesSettings ? <p className="daily-validation">この案の作成後に対象犬または部屋設定が更新されました。最新の設定で再計算してください。</p> : null}
           {plan ? <>
-            <p className="daily-plan-meta">案 ID：<span>{plan.id}</span><br />作成 {formatRecordedAt(plan.createdAt)} · 対象 {plan.petIds.length}頭</p>
+            <p className="daily-plan-meta">作成 {formatRecordedAt(plan.createdAt)} · 対象 {plan.petIds.length}頭</p>
             {plan.result.rooms.map((assignment) => <div className={`group-row ${planMatchesSettings && plan.status !== 'rejected' ? 'proposed' : ''}`} key={assignment.roomId}>
               <div className="group-name"><b>{roomName(plan.rooms, assignment.roomId)}</b><span>{assignment.petIds.length}頭 / 定員 {plan.rooms.find((room) => room.id === assignment.roomId)?.capacity ?? '—'}頭</span></div>
               <div className="dog-names">{assignment.petIds.map((petId) => petIndex.get(petId)?.name ?? petId).join(' ・ ') || '空室'}</div>
@@ -173,7 +170,7 @@ function DailyOperationsEditor({
         </section>
         <aside className="daily-records">
           <section className="card" aria-labelledby="daily-audit-title"><div className="card-top"><div><span className="eyebrow">SAVED OPERATIONS</span><h2 id="daily-audit-title">当日の操作履歴</h2></div></div><p className="daily-help">{operationDate} の操作と施設共通の部屋設定変更</p>
-            {dailyAudits.length ? <ol className="daily-audit-list">{dailyAudits.map((entry) => <li key={entry.id}><time dateTime={entry.createdAt}>{formatRecordedAt(entry.createdAt)}</time><b>{AUDIT_LABELS[entry.action]}</b><p>担当：{entry.staffId}</p>{entry.reason ? <p>理由：{entry.reason}</p> : null}{entry.planId ? <small>案 ID：{entry.planId}</small> : null}{entry.sourcePlanId ? <small>更新元：{entry.sourcePlanId}</small> : null}</li>)}</ol> : <div className="pawpals-empty"><p>当日の保存済み操作はありません。</p></div>}
+            {dailyAudits.length ? <ol className="daily-audit-list">{dailyAudits.map((entry) => <li key={entry.id}><time dateTime={entry.createdAt}>{formatRecordedAt(entry.createdAt)}</time><b>{AUDIT_LABELS[entry.action]}</b><p>担当：{entry.staffId}</p>{entry.reason ? <p>理由：{entry.reason}</p> : null}</li>)}</ol> : <div className="pawpals-empty"><p>当日の保存済み操作はありません。</p></div>}
           </section>
           <section className="card" aria-labelledby="daily-activity-title"><div className="card-top"><div><span className="eyebrow">ACTIVITY</span><h2 id="daily-activity-title">保存済みの活動</h2></div></div><p className="daily-help">過去の日付を含む計算・観測の記録</p>{activity.length ? <ol className="daily-audit-list">{activity.map((item) => <li key={item.id}><time dateTime={item.at}>{formatRecordedAt(item.at)}</time><b>{item.title}</b><p>{item.detail}</p></li>)}</ol> : <div className="pawpals-empty"><p>保存済みの活動はありません。</p></div>}</section>
         </aside>

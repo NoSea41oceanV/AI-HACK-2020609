@@ -50,7 +50,7 @@ describe('owner structured registration UI', () => {
       expect(html.match(new RegExp(`name="${key}"`, 'g'))).toHaveLength(1)
       expect(html).toMatch(new RegExp(`(?:select|textarea)[^>]*name="${key}"[^>]*required=""`))
     }
-    expect(html.match(/<option value="" disabled="" selected="">/g)).toHaveLength(Object.keys(STRUCTURED_INTAKE_OPTIONS).length + 1)
+    expect(html.match(/<option value="" disabled="" selected="">/g)).toHaveLength(Object.keys(STRUCTURED_INTAKE_OPTIONS).length + 2)
     expect(html).toContain('name="consent"')
     expect(html).toMatch(/<input(?=[^>]*name="consent")(?=[^>]*required="")[^>]*>/)
     expect(html).not.toContain('checked=""')

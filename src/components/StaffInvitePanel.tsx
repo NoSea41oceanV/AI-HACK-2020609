@@ -68,7 +68,6 @@ export function StaffInvitePanel({ onIssue, issuedByLabel }: StaffInvitePanelPro
       <div className="staff-invite__heading">
         <div>
           <h2 id="staff-invite-title">飼い主さま用の登録URL</h2>
-          <p>有効期限はありません。1つのURLで1頭を登録できます。</p>
         </div>
         {issuedByLabel && <span className="staff-invite__issuer">担当 {issuedByLabel}</span>}
       </div>

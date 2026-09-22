@@ -8,6 +8,11 @@ import type {
 } from '../domain/types'
 
 export type { DomainPetProfile, MatchingResult, RoomDefinition }
+const BREED_PHOTOS: Record<string, string> = {
+  'トイプードル': '/breed-toy-poodle.png', '柴犬': '/breed-shiba.png', 'ゴールデンレトリバー': '/breed-golden-retriever.png',
+  'チワワ': '/breed-chihuahua.png', 'フレンチブルドッグ': '/breed-french-bulldog.png', 'ミニチュアダックス': '/breed-dachshund.png',
+}
+export function petPhotoUrl(pet: DomainPetProfile): string { return pet.photoUrl || BREED_PHOTOS[pet.breed ?? ''] || '/sample-dog.png' }
 
 export const FACTOR_META: ReadonlyArray<{
   key: keyof ScoreBreakdown

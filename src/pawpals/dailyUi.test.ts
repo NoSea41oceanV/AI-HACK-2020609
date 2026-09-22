@@ -75,6 +75,5 @@ describe('daily operations display guards', () => {
     const html = render({ auditEntries: [{ id: 'decision-a', facilityId: day.facilityId, date: day.date, action: 'rejected', staffId: '佐藤', reason: '体調変化を確認', sourcePlanId: 'plan-previous', planId: 'plan-a', createdAt: at, dayRevision: 3, roomsRevision: 1 }] })
     expect(html).toContain('担当：佐藤')
     expect(html).toContain('理由：体調変化を確認')
-    expect(html).toContain('更新元：plan-previous')
   })
 })

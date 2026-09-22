@@ -1,5 +1,5 @@
 import type { DomainPetProfile } from './pawPalsModel'
-import { playStyleLabel } from './pawPalsModel'
+import { petPhotoUrl, playStyleLabel } from './pawPalsModel'
 import PersonalityAxesDisplay from '../components/PersonalityAxesDisplay'
 
 interface ProfileScreenProps {
@@ -11,9 +11,7 @@ interface ProfileScreenProps {
 }
 
 function PetAvatar({ pet }: { pet: DomainPetProfile }) {
-  return pet.photoUrl
-    ? <img className="pawpals-avatar-image" src={pet.photoUrl} alt="" />
-    : <span aria-hidden="true">{pet.name.slice(0, 1)}</span>
+  return <img className="pawpals-avatar-image" src={petPhotoUrl(pet)} alt="" />
 }
 
 export default function ProfileScreen({
@@ -31,7 +29,6 @@ export default function ProfileScreen({
         <div>
           <span className="eyebrow">プロフィール</span>
           <h1 id="profile-screen-title">プロフィール帳</h1>
-          <p>登録済みの犬を一覧から選ぶと、その子の行動プロフィールを確認できます。</p>
         </div>
         <div className="date-chip">登録犬：{pets.length}頭</div>
       </div>
@@ -46,7 +43,7 @@ export default function ProfileScreen({
                 onClick={() => onSelectPet(pet.id)}
                 aria-pressed={pet.id === selectedPet.id}
               >
-                {pet.name}
+                <span className="dog-select__identity"><img src={petPhotoUrl(pet)} alt="" />{pet.name}</span>
                 <small>{pet.breed || '犬種未登録'} / {pet.ageYears}歳 / {pet.weightKg}kg</small>
               </button>
             ))}

@@ -33,7 +33,7 @@ describe('daily compatibility views', () => {
       expect(html).not.toContain('AI生成')
     }
     expect(chart).toContain('明示的な同室不可')
-    expect(chart).toContain('相性の内訳（加重点）')
+    expect(chart).toContain('相性の内訳')
   })
 
   it('does not leak removed daily pets from an older matching result', () => {
@@ -51,8 +51,7 @@ describe('daily compatibility views', () => {
     const pets = [{ ...pet('a'), personalityAxes: axes }, { ...pet('b'), personalityAxes: { ...axes, extraversion: 55 } }]
     const matchingResult = createOptimalRoomPlan(pets, rooms)
     const chart = renderToStaticMarkup(createElement(CompatibilityScreen, { pets, matchingResult, selectedPetId: 'a', onSelectPet }))
-    expect(chart).toContain('7軸を相性計算に適用')
-    expect(chart).toContain('最大18点へ反映')
+    expect(chart).toContain('/ 18点')
     expect(chart).toContain('外向性の近さ')
     expect(chart).toContain('神経質性 × 自己主張の安全性')
     expect(chart).toContain('回復力の支え')

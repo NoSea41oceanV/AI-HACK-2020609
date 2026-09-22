@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { PairCompatibility } from '../domain/types'
 import type { DomainPetProfile, MatchingResult, RoomDefinition } from './pawPalsModel'
-import { petById, roomName, sharesRoom } from './pawPalsModel'
+import { petById, petPhotoUrl, roomName, sharesRoom } from './pawPalsModel'
 
 interface FriendMapScreenProps {
   pets: readonly DomainPetProfile[]
@@ -17,8 +17,8 @@ type Position = { x: number; y: number }
 const MAP_FILTERS: ReadonlyArray<{ id: MapFilter; label: string }> = [
   { id: 'all', label: 'すべて' },
   { id: 'room', label: '同じ部屋' },
-  { id: 'blocked', label: 'ハード制約あり' },
-  { id: 'allowed', label: 'ハード制約なし' },
+  { id: 'blocked', label: '禁忌事項あり' },
+  { id: 'allowed', label: '禁忌事項なし' },
 ]
 
 function createPositions(pets: readonly DomainPetProfile[], selectedPetId: string): ReadonlyMap<string, Position> {
@@ -71,7 +71,7 @@ export default function FriendMapScreen({ pets, matchingResult, rooms, selectedP
         <div>
           <span className="eyebrow">おともだちマップ</span>
           <h1 id="friend-map-title">おともだちマップ</h1>
-          <p>当日の預かり犬を選ぶと、その子を中心に相性・ハード制約・割当案の同室状況を確認できます。</p>
+          <p>当日の預かり犬を選ぶと、その子を中心に相性・禁忌事項・割当案の同室状況を確認できます。</p>
         </div>
       </div>
       {selectedPet && matchingResult ? (
@@ -101,9 +101,9 @@ export default function FriendMapScreen({ pets, matchingResult, rooms, selectedP
                         y1={start.y}
                         x2={end.x}
                         y2={end.y}
-                        className={`${pair.allowed ? 'good' : 'incompatible'} ${sameRoom ? 'active-room' : ''}`}
+                        className={`${pair.allowed ? 'good' : 'incompatible'} ${sameRoom ? 'active-room' : 'not-in-room'}`}
                       >
-                        <title>{petIndex.get(pair.petAId)?.name} × {petIndex.get(pair.petBId)?.name}: 相性 {pair.score}% / {pair.allowed ? 'ハード制約なし' : '明示的な同室不可'}</title>
+                        <title>{petIndex.get(pair.petAId)?.name} × {petIndex.get(pair.petBId)?.name}: 相性 {pair.score}% / {pair.allowed ? '禁忌事項なし' : '禁忌事項あり'}</title>
                       </line>
                     )
                   })}
@@ -131,7 +131,8 @@ export default function FriendMapScreen({ pets, matchingResult, rooms, selectedP
                         }}
                       >
                         <circle r={selected ? 36 : 29} />
-                        <text y="7" aria-hidden="true">{pet.name.slice(0, 1)}</text>
+                        <clipPath id={`pet-clip-${pet.id}`}><circle r={selected ? 32 : 25} /></clipPath>
+                        <image href={petPhotoUrl(pet)} x={selected ? -32 : -25} y={selected ? -32 : -25} width={selected ? 64 : 50} height={selected ? 64 : 50} preserveAspectRatio="xMidYMid slice" clipPath={`url(#pet-clip-${pet.id})`} />
                         <text className="name" y={selected ? 58 : 51}>{pet.name}</text>
                       </g>
                     )
@@ -140,9 +141,9 @@ export default function FriendMapScreen({ pets, matchingResult, rooms, selectedP
               </svg>
             </div>
             <div className="legend">
-              <span><i className="dot good" />ハード制約なし</span>
+              <span><i className="dot good" />禁忌事項なし</span>
               <span><i className="dot incompatible" />同室不可</span>
-              <span>太い線＝同じ部屋</span>
+              <span>太い実線＝同じ部屋</span><span>点線＝別の部屋</span><span>赤い点線＝同室不可</span>
             </div>
           </div>
 
@@ -172,7 +173,7 @@ export default function FriendMapScreen({ pets, matchingResult, rooms, selectedP
                     <div className="relation-score"><strong>{pair.score}</strong><small>%</small></div>
                     <div className="relation-grid">
                       <div><span>割当案の部屋</span><b>{currentRoom ? roomName(rooms, currentRoom.roomId) : '同室割当なし'}</b></div>
-                      <div><span>ハード制約</span><b>{pair.hardConstraints.map((item) => item.message).join(' / ') || '該当なし'}</b></div>
+                      <div><span>禁忌事項</span><b>{pair.hardConstraints.map((item) => item.message).join(' / ') || '該当なし'}</b></div>
                     </div>
                   </div>
                 )

@@ -3,7 +3,6 @@ import type { ObservationSubmission } from '../components/ObservationPanel'
 import type { MatchingSnapshot, ObservationRecord } from '../data'
 import type { DailyOperationDay, DailyOperationPlan, FacilityRoomSettings, OperationAuditEvent } from '../domain/dailyOperations'
 import type { MatchingResult, PetProfile as DomainPetProfile, RoomDefinition } from '../domain/types'
-import AgentScreen from './AgentScreen'
 import CompatibilityScreen from './CompatibilityScreen'
 import FriendMapScreen from './FriendMapScreen'
 import InviteScreen from './InviteScreen'
@@ -34,15 +33,14 @@ export interface StaffAppProps {
   onObserve: (submission: ObservationSubmission) => Promise<void>
 }
 
-type ScreenId = 'owner' | 'today' | 'profile' | 'match' | 'map' | 'agent'
+type ScreenId = 'owner' | 'today' | 'profile' | 'match' | 'map'
 
 const NAV_ITEMS: ReadonlyArray<{ id: ScreenId; label: string }> = [
-  { id: 'owner', label: '① 飼い主入力' },
-  { id: 'today', label: '② 今日の運営' },
-  { id: 'profile', label: '③ プロフィール帳' },
-  { id: 'match', label: '④ 相性カルテ' },
-  { id: 'map', label: '⑤ おともだちマップ' },
-  { id: 'agent', label: '⑥ AIエージェント' },
+  { id: 'owner', label: '飼い主入力' },
+  { id: 'today', label: '今日の運営' },
+  { id: 'profile', label: 'プロフィール帳' },
+  { id: 'match', label: '相性カルテ' },
+  { id: 'map', label: 'おともだちマップ' },
 ]
 
 export default function StaffApp(props: StaffAppProps) {
@@ -53,7 +51,7 @@ export default function StaffApp(props: StaffAppProps) {
   const processingLabel = props.busy
     ? '計算・保存中'
     : props.matchingResult
-      ? '相性計算結果あり'
+      ? '計算済み'
       : '計算待ち'
 
   return (
@@ -112,7 +110,6 @@ export default function StaffApp(props: StaffAppProps) {
             onSelectPet={setSelectedPetId}
           />
         ) : null}
-        {screen === 'agent' ? <AgentScreen {...props} pets={dailyPets} /> : null}
       </main>
     </div>
   )

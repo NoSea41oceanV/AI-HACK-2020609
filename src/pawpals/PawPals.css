@@ -84,3 +84,25 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 input[type=radio], input[type=checkbox] { width:auto; }
 @media(max-width:1360px) { .app-status { margin-inline:24px; } }
 @media(max-width:600px) { .facility-toolbar { padding-inline:16px; gap:7px; } .app-status { margin-inline:16px; flex-wrap:wrap; } }
+
+/* Grounded, readable visual direction. */
+:root{--green:#2f5d50;--deep:#1f3832;--cream:#f1eee8;--paper:#fff;--line:#c9c8c2;--muted:#65706c;--ink:#27332f;--shadow:0 8px 24px rgba(25,38,34,.09)}
+body{font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;background:#f1eee8;color:var(--ink)}
+.brand,.page-title h1,.kpi b,.pair-head>span,.score,.pair-score b,.relation-summary b,.relation-score strong{font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;font-weight:700}
+.dog-select__identity{display:flex;align-items:center;gap:8px}.dog-select__identity img{width:30px;height:30px;border-radius:50%;object-fit:cover}.avatar{overflow:hidden}
+.node image{pointer-events:none}.node text.name{paint-order:stroke;stroke:#fff;stroke-width:3px}
+.edges .good{stroke:#3f7663}.edges .incompatible{stroke:#9b554b;stroke-dasharray:7 7}.edges .not-in-room{stroke-dasharray:7 7}.edges .active-room{stroke-width:8}
+.legend span{display:inline-flex;align-items:center;gap:3px}
+
+/* Keep the staff workspace compact so the primary view fits in one viewport. */
+.pawpals-app{min-height:100dvh;overflow:auto;padding:10px 24px}
+.pawpals-app .site-header{padding:0 4px 7px;min-height:34px}
+.pawpals-app .brand{font-size:20px;line-height:1.1}
+.pawpals-app .tagline{font-size:9px;margin-top:1px}
+.pawpals-app .pawpals-header-meta{gap:5px}
+.pawpals-app .agent-badge{padding:5px 8px;font-size:9px}
+.pawpals-app .main-nav{padding:2px 0 8px;gap:5px}
+.pawpals-app .nav-item{padding:7px 10px;font-size:11px}
+.pawpals-app .nav-item{flex:1;min-width:150px;text-align:center}
+.pawpals-app .screen{padding-top:12px}
+@media(max-width:600px){.pawpals-app{padding:8px 14px}.pawpals-app .site-header{align-items:center}.pawpals-app .pawpals-header-meta{display:none}.pawpals-app .screen{padding-top:9px}}

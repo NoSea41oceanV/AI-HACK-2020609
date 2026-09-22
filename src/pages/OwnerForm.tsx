@@ -55,6 +55,7 @@ const HEALTH_KEYS = ['mixedVaccine', 'rabiesVaccine', 'fleaTickPrevention', 'foo
 const SOCIAL_KEYS = ['multiDogExperience', 'facilityExperience', 'puppySocialization', 'troubleHistory'] as const
 const BEHAVIOR_KEYS = ['firstMeeting', 'playPreference', 'resourceReaction', 'excitement', 'recovery', 'stressResponse'] as const
 const STRUCTURED_KEYS = [...BASIC_KEYS, ...HEALTH_KEYS, ...SOCIAL_KEYS, ...BEHAVIOR_KEYS]
+const BREEDS = ['トイプードル', '柴犬', 'チワワ', 'ミニチュアダックスフンド', 'フレンチブルドッグ', 'ゴールデンレトリバー', 'ラブラドールレトリバー', 'ポメラニアン', 'その他'] as const
 
 export function createOwnerRegistrationPayload(values: FormData, inviteId: string, media: OwnerRegistrationPayload['media']): OwnerRegistrationPayload {
   const structured = Object.fromEntries(STRUCTURED_KEYS.map((key) => [key, String(values.get(key) ?? '').trim()]))
@@ -74,7 +75,7 @@ export function createOwnerRegistrationPayload(values: FormData, inviteId: strin
       sex: String(values.get('sex')) as PetSex,
       personality: BEHAVIOR_KEYS.map((key) => `${STRUCTURED_INTAKE_LABELS[key]}：${structured[key]}`).join('\n'),
       playStyle: structured.playPreference,
-      concerns: String(values.get('concerns') ?? '').trim(),
+      concerns: [String(values.get('concerns') ?? '').trim(), String(values.get('allergyNotes') ?? '').trim() ? `アレルギー・その他：${String(values.get('allergyNotes')).trim()}` : ''].filter(Boolean).join('\n'),
       structured,
     },
     consent: { version: '2026-09', accepted: true, acceptedAt: new Date().toISOString() },
@@ -268,7 +269,10 @@ export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormPr
             </label>
             <label className="owner-field owner-field-wide">
               <span>犬種 <em>必須</em></span>
-              <input name="breed" type="text" required placeholder="例：トイプードル" />
+              <select name="breed" defaultValue="" required>
+                <option value="" disabled>犬種を選択してください</option>
+                {BREEDS.map((breed) => <option value={breed} key={breed}>{breed}</option>)}
+              </select>
             </label>
             <label className="owner-field">
               <span>年齢 <em>必須</em></span>
@@ -294,6 +298,10 @@ export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormPr
         <fieldset disabled={isSubmitting}>
           <legend><span>C</span><span><b>健康・管理情報</b><small>安全確認に必要な情報</small></span></legend>
           <div className="owner-form-grid"><StructuredFields fields={HEALTH_KEYS} disabled={isSubmitting} /></div>
+          <label className="owner-field owner-field-wide owner-free-text">
+            <span>アレルギー・その他の補足（自由記入）</span>
+            <textarea name="allergyNotes" maxLength={1000} rows={2} disabled={isSubmitting} placeholder="アレルゲン、症状、その他に伝えておきたいことがあれば入力してください" />
+          </label>
         </fieldset>
 
         <fieldset disabled={isSubmitting}>
