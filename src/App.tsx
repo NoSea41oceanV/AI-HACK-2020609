@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserSessionPersistence } from 'firebase/auth'
 import './App.css'
 import { type ObservationSubmission } from './components/ObservationPanel'
@@ -7,258 +7,273 @@ import StaffSelection from './components/StaffSelection'
 import StaffApp from './pawpals/StaffApp'
 import OwnerRegistration from './OwnerRegistration'
 import { OwnerInviteError } from './pages/OwnerForm'
-import { createIntakeRepository, createOperationRepository, createPetRepository, createInviteRepository, createStaffProfileRepository, type IntakeRepository, type PetRepository, type OperationRepository, type MatchingSnapshot, type ObservationRecord, type StaffProfile } from './data'
+import { createIntakeRepository, createOperationRepository, createPetRepository, createInviteRepository, createStaffProfileRepository, createDailyOperationRepository, createManualObservationRepository, operationDateForObservation, type MatchingSnapshot, type ObservationRecord, type PetPage, type StaffProfile } from './data'
 import { intakeToPetProfile } from './domain/intakeProfile'
-import { createOptimalRoomPlan } from './domain/matching'
-import type { MatchingResult, PetProfile as DomainPetProfile, RoomDefinition } from './domain/types'
+import { assertOperationDate, isCurrentPlan, isCurrentProposed, type DailyOperationDay, type DailyOperationPlan, type FacilityRoomSettings, type OperationAuditEvent } from './domain/dailyOperations'
+import type { PetProfile as DomainPetProfile, RoomDefinition } from './domain/types'
 import { getFirebaseAuth } from './lib/firebase'
 import { parseAppRoute, generateOwnerInviteToken, createOwnerInviteUrl } from './lib/ownerInvite'
-interface RuntimeServices { intakeRepository:IntakeRepository;petRepository:PetRepository;operationRepository:OperationRepository }
-type Runtime={ok:true;services:RuntimeServices}|{ok:false;error:string}
-function createRuntime():Runtime { try {return {ok:true,services:{intakeRepository:createIntakeRepository(),petRepository:createPetRepository(),operationRepository:createOperationRepository()}}}catch{return {ok:false,error:'施設データへの接続を準備できませんでした。'}} }
-const runtime=createRuntime()
-const ROOM_CATALOG = [
-  { id: 'garden', name: 'ガーデンルーム' },
-  { id: 'sunny', name: 'サニールーム' },
-  { id: 'calm', name: 'カームルーム' },
-] as const
 
+function createRuntime() {
+  try {
+    return { ok: true as const, services: {
+      intake: createIntakeRepository(), pets: createPetRepository(), operations: createOperationRepository(),
+      daily: createDailyOperationRepository(),
+      manualObservations: createManualObservationRepository(),
+    } }
+  } catch { return { ok: false as const, error: '施設データへの接続を準備できませんでした。' } }
+}
+const runtime = createRuntime()
 type AppStatus = { tone: 'info' | 'success' | 'error'; message: string }
-
-function createRooms(petCount: number): RoomDefinition[] {
-  if (petCount === 0) return []
-  const roomCount = Math.min(ROOM_CATALOG.length, Math.max(1, Math.ceil(petCount / 2)))
-  const capacity = Math.ceil(petCount / roomCount)
-  return ROOM_CATALOG.slice(0, roomCount).map((room) => ({ ...room, capacity, minOccupancy: 1 }))
+interface DailyView {
+  date: string
+  day: DailyOperationDay | null
+  settings: FacilityRoomSettings | null
+  plan: DailyOperationPlan | null
+  audit: OperationAuditEvent[]
 }
+const emptyDaily = (date: string): DailyView => ({ date, day: null, settings: null, plan: null, audit: [] })
+const todayInJapan = () => new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+const errorText = (error: unknown) => error instanceof Error ? error.message : '接続を確認してもう一度お試しください。'
 
-function createMatchingSnapshot(result: MatchingResult, pets: readonly DomainPetProfile[], status: MatchingSnapshot['status']): MatchingSnapshot {
-  return {
-    id: crypto.randomUUID(),
-    status,
-    petIds: pets.map((pet) => pet.id).sort(),
-    pairResults: result.pairResults.map((pair) => ({
-      pairKey: pair.pairKey,
-      petAId: pair.petAId,
-      petBId: pair.petBId,
-      score: pair.score,
-      allowed: pair.allowed,
-      hardConstraintCodes: pair.hardConstraints.map((constraint) => constraint.code),
-    })),
-    rooms: result.status === 'success' ? result.rooms.map((room) => ({
-      roomId: room.roomId,
-      petIds: room.petIds,
-      averageCompatibility: room.averageCompatibility,
-      minimumCompatibility: room.minimumCompatibility,
-    })) : [],
-    objectiveScore: result.status === 'success' ? result.objectiveScore : null,
-    createdAt: new Date().toISOString(),
+function requireServices() {
+  if (!runtime.ok) throw new Error(runtime.error)
+  const services = runtime.services
+  if (!services.daily || !services.manualObservations || services.intake.kind !== 'firestore' || services.pets.kind !== 'firestore' || services.operations.kind !== 'firestore') {
+    throw new Error('Firebaseが未設定です。実データを保存できないため、この画面ではローカル代替処理を行いません。')
   }
+  return { ...services, daily: services.daily, manualObservations: services.manualObservations }
 }
 
-function firebaseConfigurationError(): string | null {
-  if (!runtime.ok) return runtime.error
-  const { intakeRepository, petRepository, operationRepository } = runtime.services
-  if (intakeRepository.kind === 'local' || petRepository.kind === 'local' || operationRepository.kind === 'local') {
-    return 'Firebaseが未設定です。実データを保存できないため、この画面ではローカル代替処理を行いません。'
-  }
-  return null
-}
-
-function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile;onChangeStaff:()=>void;onSignOut:()=>void}) {
+function StaffWorkspace({ staff, onChangeStaff, onSignOut }: { staff: StaffProfile; onChangeStaff: () => void; onSignOut: () => void }) {
+  const [facilityId] = useState(() => getFirebaseAuth()?.currentUser?.uid)
   const [pets, setPets] = useState<DomainPetProfile[]>([])
   const [dataState, setDataState] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [isOptimizing, setIsOptimizing] = useState(false)
-  const [isConfirmed, setIsConfirmed] = useState(false)
+  const [operationDate, setOperationDate] = useState(todayInJapan)
+  const [dailyView, setDailyView] = useState(() => emptyDaily(operationDate))
+  const [dailyLoading, setDailyLoading] = useState(true)
+  const [dailyError, setDailyError] = useState('')
+  const [busy, setBusy] = useState(false)
   const [matchingHistory, setMatchingHistory] = useState<MatchingSnapshot[]>([])
   const [observations, setObservations] = useState<ObservationRecord[]>([])
   const [historyError, setHistoryError] = useState('')
-  const [status, setStatus] = useState<AppStatus>(() => {
-    const configurationError = firebaseConfigurationError()
-    return configurationError
-      ? { tone: 'error', message: configurationError }
-      : { tone: 'info', message: '施設の登録情報を読み込んでいます。' }
-  })
+  const [status, setStatus] = useState<AppStatus>({ tone: 'info', message: '施設の登録情報を読み込んでいます。' })
+  const active = useRef(true)
+  const selectedDate = useRef(operationDate)
+  selectedDate.current = operationDate
+  const dailyRequest = useRef(0)
+  const mutationLock = useRef(false)
+  const petRequest = useRef<Promise<DomainPetProfile[]> | null>(null)
+  const observationRetryIds = useRef(new Map<string, string>())
 
-  const rooms = useMemo(() => createRooms(pets.length), [pets.length])
-  const matchingResult = useMemo(() => pets.length > 0 ? createOptimalRoomPlan(pets, rooms) : null, [pets, rooms])
+  const assertFacility = useCallback(() => {
+    if (!active.current || !facilityId || getFirebaseAuth()?.currentUser?.uid !== facilityId) throw new Error('施設アカウントが変更されました。ログインを確認してください。')
+  }, [facilityId])
+
+  useEffect(() => {
+    active.current = true
+    return () => { active.current = false; dailyRequest.current += 1 }
+  }, [])
+
   const loadHistory = useCallback(async () => {
-    if (!runtime.ok) return
-    const results = await Promise.allSettled([
-      runtime.services.operationRepository.listMatchings(),
-      runtime.services.operationRepository.listObservations(),
-    ])
+    assertFacility()
+    const { operations, manualObservations } = requireServices()
+    const results = await Promise.allSettled([operations.listMatchings(), manualObservations.listManual()])
+    assertFacility()
     if (results[0].status === 'fulfilled') setMatchingHistory(results[0].value)
     if (results[1].status === 'fulfilled') setObservations(results[1].value)
     setHistoryError(results.some(result => result.status === 'rejected') ? '保存履歴を取得できませんでした。登録情報を更新して再試行してください。' : '')
-  }, [])
+  }, [assertFacility])
 
-  const refreshPromise = useRef<Promise<DomainPetProfile[]> | null>(null)
+  const loadDaily = useCallback(async (date: string) => {
+    assertFacility()
+    const request = ++dailyRequest.current
+    if (selectedDate.current === date) setDailyLoading(true)
+    try {
+      const { daily } = requireServices()
+      const [day, settings, audit] = await Promise.all([daily.getDay(date), daily.getRooms(), daily.listAudit(date)])
+      assertFacility()
+      const plan = day?.latestPlanId ? await daily.getPlan(date, day.latestPlanId) : null
+      assertFacility()
+      if (request === dailyRequest.current && selectedDate.current === date) {
+        setDailyView({ date, day, settings, plan, audit })
+        setDailyError('')
+      }
+    } catch (error) {
+      if (active.current && request === dailyRequest.current && selectedDate.current === date) {
+        setDailyView(emptyDaily(date))
+        setDailyError(`当日の運用情報を取得できませんでした。${errorText(error)}`)
+      }
+      throw error
+    } finally {
+      if (active.current && request === dailyRequest.current && selectedDate.current === date) setDailyLoading(false)
+    }
+  }, [assertFacility])
+
   const loadPets = useCallback(async () => {
-    if (refreshPromise.current) return refreshPromise.current
+    if (petRequest.current) return petRequest.current
     const pending = (async () => {
-    const configurationError = firebaseConfigurationError()
-    if (configurationError) {
-      setDataState('error')
-      setStatus({ tone: 'error', message: configurationError })
-      throw new Error(configurationError)
-    }
-    if (!runtime.ok) throw new Error(runtime.error)
-
-    setDataState('loading')
-    try {
-      const intakes = await runtime.services.intakeRepository.listRecent(25)
+      assertFacility()
+      const services = requireServices()
+      const intakes = await services.intake.listRecent(25)
+      assertFacility()
       await Promise.all(intakes.filter(intake => intake.status === 'ready' && intake.matchingProfile).map(intake =>
-        runtime.services.petRepository.saveIfAbsent(intakeToPetProfile({ intakeId:intake.id, pet:intake.pet, matchingProfile:intake.matchingProfile }))))
-      const [page] = await Promise.all([runtime.services.petRepository.listPage(20), loadHistory()])
-      setPets(page.pets)
+        services.pets.saveIfAbsent(intakeToPetProfile({ intakeId: intake.id, pet: intake.pet, matchingProfile: intake.matchingProfile }))))
+      const all: DomainPetProfile[] = []
+      let cursor: string | null = null
+      const seen = new Set<string>()
+      do {
+        assertFacility()
+        // The repository fetches one look-ahead record; keep each Rules query at <=25.
+        const page: PetPage = await services.pets.listPage(24, cursor)
+        all.push(...page.pets)
+        cursor = page.nextCursor
+        if (cursor && seen.has(cursor)) throw new Error('登録一覧の続きを取得できませんでした。')
+        if (cursor) seen.add(cursor)
+      } while (cursor)
+      assertFacility()
+      setPets(all)
       setDataState('ready')
-      setIsConfirmed(false)
-      setStatus({
-        tone: 'success',
-        message: page.pets.length > 0
-          ? `${page.pets.length}頭の登録情報を読み込み、全${page.pets.length * (page.pets.length - 1) / 2}ペアを採点しました。`
-          : '登録済みのわんちゃんはまだいません。',
-      })
-      return page.pets
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Firestoreからプロフィールを取得できませんでした。'
-      setDataState('error')
-      setStatus({ tone: 'error', message: `${message} 「登録情報を更新」を押して再試行してください。` })
-      throw error
-    }
-
+      return all
     })()
-    refreshPromise.current = pending
-    try { return await pending } finally { refreshPromise.current = null }
-  }, [loadHistory])
+    petRequest.current = pending
+    try { return await pending }
+    catch (error) {
+      if (active.current) { setDataState('error'); setStatus({ tone: 'error', message: errorText(error) }) }
+      throw error
+    } finally { petRequest.current = null }
+  }, [assertFacility])
 
-  useEffect(() => {
-    if (firebaseConfigurationError() || !runtime.ok) {
-      setDataState('error')
-      return
-    }
-    let active = true
-    void loadPets().catch(() => undefined)
-    const unsubscribe = runtime.services.petRepository.subscribeRecent((nextPets) => {
-      if (!active) return
-      setPets(nextPets)
-      setDataState('ready')
-      setIsConfirmed(false)
-    }, 20)
-    return () => {
-      active = false
-      unsubscribe()
-    }
-  }, [loadPets])
+  useEffect(() => { void loadPets().then(async () => { await loadHistory(); if (active.current) setStatus({ tone: 'success', message: '登録情報を読み込みました。当日の対象犬と部屋設定を確認してください。' }) }).catch(() => undefined) }, [loadPets, loadHistory])
+  useEffect(() => { void loadDaily(operationDate).catch(() => undefined) }, [loadDaily, operationDate])
 
-  const saveCurrentMatching = useCallback(async (confirmation: boolean) => {
-    const configurationError = firebaseConfigurationError()
-    if (configurationError || !runtime.ok) {
-      setStatus({ tone: 'error', message: configurationError ?? 'サービスを初期化できませんでした。' })
-      return
-    }
-    if (!matchingResult || (confirmation && matchingResult.status !== 'success')) {
-      setStatus({ tone: 'error', message: '再計算するプロフィールがありません。' })
-      return
-    }
-    setIsOptimizing(true)
-    setIsConfirmed(false)
+  const view = dailyView.date === operationDate ? dailyView : emptyDaily(operationDate)
+  const currentResult = !dailyLoading && !dailyError && isCurrentPlan(view.day, view.settings, view.plan)
+    && (view.plan?.status === 'proposed' || view.plan?.status === 'confirmed') ? view.plan.result : null
+
+  const perform = async (work: () => Promise<unknown>, success: string) => {
+    if (mutationLock.current || dailyLoading) throw new Error('処理中です。完了してからお試しください。')
+    if (dailyError) throw new Error('運用情報を読み直してからお試しください。')
+    assertFacility()
+    const date = operationDate
+    mutationLock.current = true
+    setBusy(true)
+    let saved = false
     try {
-      await runtime.services.operationRepository.saveMatching(createMatchingSnapshot(matchingResult, pets, confirmation ? 'confirmed' : 'proposed'))
-      await loadHistory()
-      setIsConfirmed(confirmation)
-      setStatus({
-        tone: 'success',
-        message: confirmation
-          ? 'この部屋割りを確定して保存しました。'
-          : matchingResult.status === 'success'
-            ? `全${matchingResult.pairResults.length}ペアを再採点し、部屋割り案を保存しました。`
-            : matchingResult.message,
-      })
+      await work()
+      saved = true
+      assertFacility()
+      await Promise.all([loadDaily(date), loadHistory()])
+      setStatus({ tone: 'success', message: success })
     } catch (error) {
-      setStatus({ tone: 'error', message: `${error instanceof Error ? error.message : '結果を保存できませんでした。'} 同じ操作を再度実行してください。` })
-    } finally {
-      setIsOptimizing(false)
-    }
-  }, [matchingResult, pets, loadHistory])
-
-  const applyObservation = useCallback(async (submission: ObservationSubmission) => {
-    const configurationError = firebaseConfigurationError()
-    if (configurationError || !runtime.ok) throw new Error(configurationError ?? 'サービスを初期化できませんでした。')
-    const primary = pets.find((pet) => pet.id === submission.petAId)
-    const counterpart = pets.find((pet) => pet.id === submission.petBId)
-    if (!primary || !counterpart) throw new Error('対象ペットを現在のFirestoreデータから確認できません。')
-
-    setIsOptimizing(true)
-    setIsConfirmed(false)
-    try {
-      const observation: ObservationRecord = {
-        id: crypto.randomUUID(),
-        scenarioId: submission.decision,
-        title: `${primary.name}と${counterpart.name}の当日観測`,
-        facts: [submission.notes],
-        impacts: [submission.decision === 'separate' ? '安全判断として同室不可制約を追加' : 'プロフィール変更なしで全ペアを再評価'],
-        recommendation: submission.decision === 'separate'
-          ? '両者を別室候補として再計算する。'
-          : '現在のプロフィールで全室を再計算し、スタッフが結果を確認する。',
-        observedAt: new Date().toISOString(),
-      }
-      await runtime.services.operationRepository.saveObservation(observation)
-      let nextPets = pets
-      if (submission.decision === 'separate') {
-        const updatedPrimary: DomainPetProfile = {
-          ...primary,
-          hardBlockedPetIds: [...new Set([...(primary.hardBlockedPetIds ?? []), counterpart.id])].sort(),
-        }
-        await runtime.services.petRepository.save(updatedPrimary)
-        nextPets = pets.map((pet) => pet.id === updatedPrimary.id ? updatedPrimary : pet)
-      }
-      const nextResult = createOptimalRoomPlan(nextPets, createRooms(nextPets.length))
-      await runtime.services.operationRepository.saveMatching(createMatchingSnapshot(nextResult, nextPets, 'proposed'))
-      await loadHistory()
-      setPets(nextPets)
-      setStatus({
-        tone: nextResult.status === 'success' ? 'success' : 'error',
-        message: nextResult.status === 'success'
-          ? `観測記録を保存し、全${nextResult.pairResults.length}ペアと部屋割りを再計算しました。`
-          : `観測記録は保存しましたが、再配置案を作れませんでした: ${nextResult.message}`,
-      })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : '観測を反映できませんでした。'
-      setStatus({ tone: 'error', message: `${message} 内容を確認して再度実行してください。` })
+      if (active.current) setStatus({ tone: 'error', message: saved
+        ? `保存しましたが、表示の更新を確認できませんでした。「登録情報を更新」で確認してください。${errorText(error)}`
+        : errorText(error) })
+      if (!saved && active.current) await loadDaily(date).catch(() => undefined)
       throw error
     } finally {
-      setIsOptimizing(false)
+      mutationLock.current = false
+      if (active.current) setBusy(false)
     }
-  }, [pets, loadHistory])
+  }
 
+  const saveDailyPets = (petIds: string[]) => perform(() => requireServices().daily.saveDay({
+    date: operationDate, petIds, staffId: staff.id, expectedRevision: view.day?.revision ?? 0,
+  }), '当日の対象犬を保存しました。部屋割りを再計算してください。')
+  const saveRooms = (rooms: RoomDefinition[]) => perform(() => requireServices().daily.saveRooms({
+    rooms, staffId: staff.id, expectedRevision: view.settings?.revision ?? 0,
+  }), '施設の部屋設定を保存しました。部屋割りを再計算してください。')
+  const optimize = async () => {
+    try {
+      await perform(() => requireServices().daily.recalculate({ date: operationDate, staffId: staff.id,
+        reason: 'スタッフ操作による当日配置の再計算', expectedRevision: view.day?.revision ?? 0,
+        expectedRoomsRevision: view.settings?.revision ?? 0 }), '当日の対象犬だけで部屋割り案を保存しました。')
+    } catch { /* The shared status contains the actionable failure. */ }
+  }
+  const decidePlan = (decision: 'confirmed' | 'rejected', reason: string) => perform(async () => {
+    if (!view.day || !view.plan || !isCurrentProposed(view.day, view.settings, view.plan)) throw new Error('最新の有効な案を表示してから判断してください。')
+    return requireServices().daily.decide({ date: operationDate, planId: view.plan.id, staffId: staff.id,
+      decision, reason, expectedRevision: view.day.revision })
+  }, decision === 'confirmed' ? '選択中のスタッフが最新案を承認しました。' : '選択中のスタッフが最新案を却下しました。')
+
+  const applyObservation = async (submission: ObservationSubmission) => {
+    await perform(async () => {
+      const primary = pets.find(pet => pet.id === submission.petAId)
+      const counterpart = pets.find(pet => pet.id === submission.petBId)
+      if (!primary || !counterpart || !view.day || ![primary.id, counterpart.id].every(id => view.day!.selectedPetIds.includes(id))) throw new Error('当日の対象犬を選択してください。')
+      const services = requireServices()
+      const observedAt = new Date().toISOString()
+      if (operationDateForObservation(observedAt) !== operationDate) throw new Error('手動観測は日本時間の当日だけ登録できます。')
+      const petIds = [primary.id, counterpart.id].sort()
+      const retryKey = JSON.stringify([operationDate, petIds, submission.decision, submission.notes])
+      const observationId = observationRetryIds.current.get(retryKey) ?? crypto.randomUUID()
+      observationRetryIds.current.set(retryKey, observationId)
+      try {
+        await services.manualObservations.createManual({ id: observationId,
+          title: `${primary.name}と${counterpart.name}の当日観測`, facts: [submission.notes],
+          impacts: [submission.decision === 'separate' ? '安全判断として同室不可制約を追加' : 'プロフィール変更なしで再評価'],
+          recommendation: '当日の部屋割りを再計算し、スタッフが結果を確認する。', observedAt,
+          staffId: staff.id, petIds, operationDate }, facilityId)
+        if (submission.decision === 'separate') {
+          assertFacility()
+          const hardBlockedPetIds = [...new Set([...(primary.hardBlockedPetIds ?? []), counterpart.id])].sort()
+          await services.pets.save({ ...primary, hardBlockedPetIds })
+          assertFacility()
+          setPets(current => current.map(pet => pet.id === primary.id ? { ...pet, hardBlockedPetIds } : pet))
+        }
+        assertFacility()
+        await services.daily.recalculate({ date: operationDate, staffId: staff.id, reason: submission.notes,
+          expectedRevision: view.day.revision, expectedRoomsRevision: view.settings?.revision ?? 0 })
+        observationRetryIds.current.delete(retryKey)
+      } catch (error) {
+        throw new Error(`観測の保存または部屋割り案の更新を完了できませんでした。${errorText(error)}`)
+      }
+    }, '観測を保存し、当日の部屋割り案を更新しました。')
+  }
 
   const issueInvite = async () => {
-    const repository=createInviteRepository()
-    if(!repository)throw new Error('登録URLを発行できません。')
-    const token=generateOwnerInviteToken()
-    await repository.create(token,staff.id)
-    return createOwnerInviteUrl(window.location.origin,token)
+    assertFacility()
+    const repository = createInviteRepository()
+    if (!repository) throw new Error('登録URLを発行できません。')
+    const token = generateOwnerInviteToken()
+    await repository.create(token, staff.id)
+    return createOwnerInviteUrl(window.location.origin, token)
+  }
+  const changeDate = (date: string) => {
+    if (mutationLock.current || date === selectedDate.current) return
+    try { assertOperationDate(date) } catch { return }
+    selectedDate.current = date
+    dailyRequest.current += 1
+    setDailyView(emptyDaily(date))
+    setDailyError('')
+    setDailyLoading(true)
+    setOperationDate(date)
+  }
+  const refresh = async () => {
+    if (mutationLock.current) return
+    mutationLock.current = true
+    setBusy(true)
+    try { await Promise.all([loadPets(), loadHistory(), loadDaily(operationDate)]); setStatus({ tone: 'success', message: '保存済みの登録・運用情報を更新しました。' }) }
+    catch (error) { if (active.current) setStatus({ tone: 'error', message: errorText(error) }) }
+    finally { mutationLock.current = false; if (active.current) setBusy(false) }
   }
   return <div className="app-shell">
     <header className="facility-toolbar">
-      <strong>操作担当: {staff.name}</strong>
-      <span>スタッフ選択は操作担当の記録です</span>
-      <button type="button" onClick={onChangeStaff}>担当を変更</button>
-      <button type="button" onClick={onSignOut}>ログアウト</button>
+      <strong>操作担当: {staff.name}</strong><span>スタッフ選択は操作担当の記録です</span>
+      <button type="button" disabled={busy} onClick={onChangeStaff}>担当を変更</button>
+      <button type="button" disabled={busy} onClick={onSignOut}>ログアウト</button>
     </header>
-    <div className={`app-status app-status--${status.tone}`} role={status.tone==='error'?'alert':'status'}>
-      <span>{status.message}</span>
-      <button type="button" disabled={dataState==='loading'} onClick={()=>void loadPets().catch(()=>undefined)}>登録情報を更新</button>
+    <div className={`app-status app-status--${status.tone}`} role={status.tone === 'error' ? 'alert' : 'status'}>
+      <span>{status.message}</span><button type="button" disabled={busy || dataState === 'loading'} onClick={() => void refresh()}>登録情報を更新</button>
     </div>
     {historyError && <p className="app-status app-status--error" role="alert">{historyError}</p>}
-    {dataState === 'ready' ? <StaffApp pets={pets} matchingResult={matchingResult} rooms={rooms}
+    {dailyError && <p className="app-status app-status--error" role="alert">{dailyError}</p>}
+    {dataState === 'ready' ? <StaffApp pets={pets} matchingResult={currentResult} rooms={view.settings?.rooms ?? []}
       matchingHistory={matchingHistory} observations={observations} staffName={staff.name}
-      busy={isOptimizing} confirmed={isConfirmed} onIssueInvite={issueInvite}
-      onOptimize={() => saveCurrentMatching(false)} onConfirm={() => saveCurrentMatching(true)} onObserve={applyObservation} />
-      : <section className="app-state-panel" role="status"><h1>{dataState === 'loading' ? '登録情報を読み込んでいます' : '登録情報を読み込めませんでした'}</h1><p>{dataState === 'loading' ? 'そのままお待ちください。' : '接続を確認し、「登録情報を更新」を押してください。'}</p></section>}
-
+      operationDate={operationDate} dailyOperation={view.day} roomSettings={view.settings} currentPlan={view.plan} auditEntries={view.audit}
+      busy={busy || dailyLoading || Boolean(dailyError)} onIssueInvite={issueInvite} onOperationDateChange={changeDate}
+      onSaveDailyPets={saveDailyPets} onSaveRooms={saveRooms} onOptimize={optimize} onDecidePlan={decidePlan} onObserve={applyObservation} />
+      : <section className="app-state-panel" role="status"><h1>{dataState === 'loading' ? '登録情報を読み込んでいます' : '登録情報を読み込めませんでした'}</h1><p>接続を確認し、「登録情報を更新」を押してください。</p></section>}
   </div>
 }
 
