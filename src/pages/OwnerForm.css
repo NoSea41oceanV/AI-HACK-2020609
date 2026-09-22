@@ -206,6 +206,81 @@
   font-weight: 800;
 }
 
+.owner-personality-section {
+  gap: 18px;
+}
+
+.owner-personality-heading {
+  display: flex;
+  padding: 16px 18px;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--owner-sage-50);
+  border-left: 4px solid var(--owner-sage-600);
+  border-radius: 12px;
+}
+
+.owner-personality-heading strong {
+  color: var(--owner-sage-700);
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.owner-personality-heading span {
+  color: var(--owner-muted);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.owner-personality-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.owner-personality-question {
+  display: flex;
+  min-width: 0;
+  padding: 16px;
+  flex-direction: column;
+  gap: 7px;
+  background: #fffefb;
+  border: 1px solid rgba(23, 50, 79, .09);
+  border-radius: 14px;
+}
+
+.owner-personality-question > label:first-child {
+  min-height: 3.3em;
+  color: var(--owner-sage-700);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.owner-personality-question select[aria-invalid="true"],
+.owner-personality-other textarea[aria-invalid="true"] {
+  border-color: var(--owner-error);
+}
+
+.owner-personality-other {
+  display: flex;
+  margin-top: 4px;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.owner-personality-other textarea {
+  min-height: 84px;
+}
+
+.owner-personality-error {
+  margin: 2px 0 0;
+  color: var(--owner-error);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .owner-field input,
 .owner-field select,
 .owner-field textarea {
@@ -439,7 +514,7 @@
 
 .owner-submit-button {
   display: inline-flex;
-  width: min(100%, 340px);
+  width: 100%;
   min-height: 56px;
   padding: 14px 22px;
   align-items: center;
@@ -583,8 +658,13 @@
   }
 
   .owner-form-grid,
-  .owner-media-grid {
+  .owner-media-grid,
+  .owner-personality-grid {
     grid-template-columns: 1fr;
+  }
+
+  .owner-personality-question > label:first-child {
+    min-height: auto;
   }
 
   .owner-field-wide {
