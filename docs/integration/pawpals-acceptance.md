@@ -1,7 +1,7 @@
 # PawPals 確定要件・受入条件・検証証拠対応表
 
 更新日: 2026-09-22。文書調査基点 `6609e685eee3126a5f19f6a59d123f450747a306`。
-仕様出典はBB最新ユーザー決定の担当割当連絡。backend実装branchは `origin/feat/pawpals-data-contracts`。A/B/Cの3コミットと検証結果を2026-09-22に受領し、リモート上の変更範囲を照合した。公開配備は未実施。
+仕様出典はBB最新ユーザー決定の担当割当連絡。backend A/B/C、UI、App、7軸matchingを最終 `b1cb969` へ統合し、2026-09-22にローカル統合検証とFirebase Hosting / Rules / Indexes配備が完了した。
 
 この表は `gpt-5.6-sol / high` による最終全体レビューの入力資料とする。コードの存在、単体検証、ローカル統合、公開配備を別々に判断する。
 
@@ -22,6 +22,8 @@
 | U01 | UI commit `87ad6c0` | 構造化受付、7軸表示、当日対象/部屋/監査表示、観測UIとUIテスト | push済み。App統合と統合画面E2Eは別 |
 | I02 | App統合前の中間報告 | アプリ18ファイル114件、Worker 18件成功 | 後続I03でtypecheck/build/E2E完了。公開配備の証拠にはしない |
 | I03 | App統合 `d6dd66c` と担当検証報告 | 招待→構造化登録→7軸表示→当日対象/部屋→再計算→理由付き承認/監査。typecheck、18ファイル114件、build、Rules実emulator、desktop/mobile 390px、console error/warn 0 | 7軸を相性100点へ使うR07/R07bと公開配備は別 |
+| I04 | matching `9b727cb` / 根拠UI・最終統合 `b1cb969` | 全7軸を最大18点として100点へ統合。適用/未適用根拠UI。19ファイル127件、typecheck/build/Rules/E2E成功 | 公開側の認証後E2Eは別 |
+| D05 | Firebase配備報告 | Hosting / Rules / Indexes deploy exit 0。公開HTTP 200、asset一致、ログインUI/ready/console 0。Worker health正常 | 本番資格情報がないため公開認証後E2E未実施 |
 | M01 | 実モックindex.html / app.js / README.txt | 質問と7軸の名称、画面構造 | 固定数値を実分析として使う根拠、7軸算出式 |
 
 B02/B03は過去の担当検証記録であり、この文書タスクで再実行したものではない。今回の追加要件に対する検証証拠は次表の欄へ記録する。
@@ -30,24 +32,24 @@ B02/B03は過去の担当検証記録であり、この文書タスクで再実�
 
 | ID | 確定要件・受入条件 | 担当 | 現在状態 | 基点/契約の根拠 | 今回実装SHA・検証証拠 |
 |---|---|---|---|---|---|
-| R01 | モック構造/配色/操作感を活用。実データまたは明示空状態を表示し、未対応/IFを区別 | UI・[09] | 進行中 | B02/M01 | 未受領。6画面・モバイルで固定犬/固定数値/架空ログがないこと |
+| R01 | モック構造/配色/操作感を活用。実データまたは明示空状態を表示し、未対応/IFを区別 | UI・[09] | 検証済み | B02/M01/I03/I04 | desktop/mobile、実データ経路、console 0を確認。cameraはunsupported表示 |
 | R02 | 構造化18キーをフォーム→AI→保存→読み戻しまで保持。選択肢/自由記述上限を両端/Rulesで検証 | backend・UI・[09] | 検証済み | C01/D01/D04/I03/M01 | backend拒否系と統合E2E成功 |
 | R03 | structured新受付に同意必須。旧自由記述受付は読み取り可能。未回答を自動補完しない | backend・UI・[09] | 検証済み | C01/D01/D04/I03 | Rulesと統合E2E成功 |
 | R04 | 7軸が整数0〜100。構造化分析時必須、AI/プロフィール間同値伝搬。旧5軸と互換 | backend・UI・[09] | 検証済み（保存・表示） | C01/D01/D04/I03 | 7軸の相性100点利用はR07/R07bで別判定 |
 | R05 | 施設・対象日・明示選択犬を保存し、当日計算は選択犬だけ | backend・UI・[09] | 検証済み | C02/D02/D04/I03 | Rules/Repository/統合E2E成功 |
 | R06 | 施設別部屋設定を保存・読み戻しし、定員等を計算へ反映 | backend・UI・[09] | 検証済み | C02/D02/D04/I03 | 10部屋、revision、施設境界、統合E2E成功 |
-| R07 | 全n(n-1)/2ペアを採点。両犬に7軸があれば既存信号と全7軸を100点へ統合し、欠損時は既存計算。hard制約を維持 | matching・UI・[09] | 追加要件・実装検証待ち | B01/C01/D01/確定仕様 | 配点合計100、全7軸感度、対称性/決定性、0〜100、旧データ回帰、片側欠損、EXPLICIT_BLOCK、解なしを検証 |
-| R07b | scoreVersionと再現可能な既存/7軸breakdownを提案へ保存し、最適化・再読込・%表示で同一結果を使う。5分類は追加しない | matching・UI・[09] | 追加要件・実装検証待ち | R07 | 保存/read-back、再計算前後、UI内訳、旧snapshot互換、定型文をAI説明としないことを検証 |
+| R07 | 全n(n-1)/2ペアを採点。両犬に7軸があれば既存信号と全7軸を100点へ統合し、欠損時は既存計算。hard制約を維持 | matching・UI・[09] | 検証済み | B01/C01/D01/I04 | 最大18点の全7軸感度、対称性/決定性、0〜100、旧データ回帰、片側欠損、EXPLICIT_BLOCKを検証 |
+| R07b | `aiSevenAxisApplied`、評価内訳またはfallbackを計算結果へ保存し、最適化・再読込・%表示で同一結果を使う。5分類は追加しない | matching・UI・[09] | 検証済み | R07/I04 | E2Eで96.3%、16.3/18点、軸別内訳とUI根拠を確認 |
 | R08 | 最新proposedだけ選択中スタッフが承認/却下できる。date/dayRevision/roomsRevision一致 | backend・UI・[09] | 検証済み | C02/D02/D04/I03 | backend拒否系と理由付き承認E2E成功 |
 | R09 | 再計算で旧proposedをsuperseded化し、元案参照を持つ新案保存。待ち件数は最新未確定案のみ | backend・UI・[09] | 検証済み | C02/D02/D04/I03 | 旧案失効と再計算E2E成功 |
 | R10 | day_saved/rooms_saved/recalculated/confirmed/rejectedをappend-only監査。担当/日時/対象/理由/元案を追跡 | backend・[09] | 検証済み | C02/D02/D04/I03 | transaction/Rules/施設境界と承認監査E2E成功 |
-| R11 | 招待発行の施設/スタッフ契約を維持。期限なし・一度登録・hash保持・アクセス分離 | backend・UI・[09] | 進行中（今回回帰待ち） | B01/B02 | 未受領。別施設/別飼い主/再create拒否、発行者metadata保存 |
-| R12 | 手動観測を保存・表示・再計算へ接続。source/scenarioIdをmanual固定、legacy read互換 | backend・UI・[09] | backend検証済み・統合進行中 | B01/C02/D03/D04 | 冪等性、JST日付/未来、施設境界をbackendで確認。表示・再計算統合待ち |
+| R11 | 招待発行の施設/スタッフ契約を維持。期限なし・一度登録・hash保持・アクセス分離 | backend・UI・[09] | 検証済み | B01/B02/I03 | Rules実emulatorと招待→登録E2E成功 |
+| R12 | 手動観測を保存・表示・再計算へ接続。source/scenarioIdをmanual固定、legacy read互換 | backend・UI・[09] | 検証済み | B01/C02/D03/D04/I04 | 冪等性、日付/未来、施設境界、App統合テスト成功 |
 | R13 | 将来ingestionは入力源/型/adapter/テストのみ。cameraはunsupported | backend | 検証済み（backend範囲） | C02/D03/D04 | 型/adapterテスト成功。cameraはunsupported、実接続・監視なし |
-| R14 | 実在する観測/snapshotsのみ表示。severity/ack/交流実績/AI説明を捏造しない | UI・[09] | 進行中 | 確定仕様 | 未受領。空状態、定型根拠と実AI根拠の表示、未対応ラベル |
+| R14 | 実在する観測/snapshotsのみ表示。severity/ack/交流実績/AI説明を捏造しない | UI・[09] | 検証済み | I03/I04 | 保存済み結果と7軸根拠UI、fallback表示をテスト |
 | R15 | AI/保存/認証失敗と無料枠到達を明示。媒体・PII・Secret境界を維持 | backend・UI・[09] | 進行中（今回回帰待ち） | B01/B02/C01 | 未受領。拡張payload、Worker拒否/失敗、保存失敗、ログ境界 |
-| R16 | 今回変更の全体統合と最終レビュー | [09]・レビュー担当 | 進行中 | R01〜R15 | 統合SHA・`gpt-5.6-sol / high` レビュー結果・未解決事項を記録する |
-| R17 | 公開配備と実環境の保存・AI・認証・当日運用 | 配備担当 | 未着手（証拠未受領） | R16完了後、依頼範囲内 | 未受領。Hosting/Rules/Workerの版・環境・実read-back |
+| R16 | 今回変更の全体統合と最終レビュー | [09]・レビュー担当 | 検証済み | R01〜R15/I04 | 最終統合 `b1cb969`、`gpt-5.6-sol / high`。全自動検証とローカルE2E成功 |
+| R17 | 公開配備と実環境の保存・AI・認証・当日運用 | 配備担当 | 配備済み（認証後E2Eを除く） | D05 | Hosting/Rules/Indexes、公開asset/ログイン/Worker health確認。認証後の実保存は未実施 |
 
 各「今回証拠」には次を記載する: 対象commit SHA、実行日、環境（emulator/test double/実サービス）、コマンドまたは操作、期待結果、実結果、ログ/画面/報告への参照、未実施の範囲。コードだけで検証済みにせず、検証だけで配備済みにしない。
 

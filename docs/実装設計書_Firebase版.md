@@ -54,9 +54,9 @@ Firestoreは `pawpair-ai-hack-2026` / `asia-northeast1`。Firebase Cloud Functio
 - `ManualObservationRecord`: 既存観測に `source:'manual', staffId, petIds, operationDate` を追加。createManualがsource/scenarioIdをmanualへ固定。listManualを提供。同ID同内容は再送可能、別内容は拒否。スタッフ有効性・対象犬の施設所属を確認する。
 - 将来IFは `src/domain/observationIngestion.ts`。cameraはunsupported。手動観測・ingestion境界は `d6431c9`、当日運用・部屋設定・監査は `48e0e02` で実装された。
 
-実装証拠: `origin/feat/pawpals-data-contracts` の `3048cc6`（受付/7軸）、`48e0e02`（当日運用/監査）、`d6431c9`（手動観測/ingestion）。担当報告ではアプリ89件、Worker 18件、typecheck/build、Rules実emulatorが成功。Firestore indexesを追加済み。文書担当はリモート変更範囲を照合したが、テスト自体は再実行していない。公開配備は未実施。
+backend単独証拠: `origin/feat/pawpals-data-contracts` の `3048cc6`（受付/7軸）、`48e0e02`（当日運用/監査）、`d6431c9`（手動観測/ingestion）。この段階ではアプリ89件、Worker 18件、typecheck/build、Rules実emulatorが成功し、公開配備は未実施だった。
 
-統合branchではbackendが `d12a381` / `3350193` / `373f39e` として取り込まれ、UI `87ad6c0`、App統合 `d6dd66c` が共有された。担当報告ではtypecheck、アプリ18ファイル114件、Worker 18件、build、Rules実emulator、招待から理由付き承認/監査までのブラウザE2E、desktop/mobile表示、console error/warn 0を確認した。AI生成7軸を相性100点へ使う計算は別成果待ちで、公開配備も未実施。
+中間統合ではbackendが `d12a381` / `3350193` / `373f39e` として取り込まれ、UI `87ad6c0`、App統合 `d6dd66c` が共有された。この段階でtypecheck、アプリ18ファイル114件、Worker 18件、build、Rules実emulator、招待から理由付き承認/監査までのブラウザE2E、desktop/mobile表示、console error/warn 0を確認した。後続の `9b727cb` / `b1cb969` が7軸相性計算と根拠UIを追加した。
 
 ## 5. AI・媒体・エラー
 
@@ -70,9 +70,9 @@ AI失敗、不正応答、認証/保存/読み戻し失敗、無料枠上限は�
 
 相性スコアは0〜100を%表示する。全ペア完了後、定員・最低頭数・全頭配置・hard blockを満たす解を選ぶ。基点の選択基準は同室ペアの `score - 50` 合計、合計スコア、ID順。
 
-相性計算はversionを持つ2経路にする。両方のプロフィールに完全な `PersonalityAxes` があるときは、既存5指標・体格・遊び方と7軸全項目を決定的な重み付き計算へ入力し、合計を0〜100に正規化する。片方でも7軸がない場合は基点の既存100点計算をそのまま使用する。欠損軸の補完、AIによる最終score生成、hard blockの点数化は行わない。
+相性計算は2経路を持つ。両方のプロフィールに完全な `PersonalityAxes` があるときは、既存5指標・体格・遊び方と7軸全項目を決定的な重み付き計算へ入力し、合計を0〜100にする。7軸の最大寄与は18点（外向性5、社交性5、神経質性×自己主張2.5、訓練性1、資源防衛3、回復力1.5）。片方でも7軸がない場合は基点の既存100点計算をそのまま使用する。欠損軸の補完、AIによる最終score生成、hard blockの点数化は行わない。
 
-`PairCompatibility` / 保存snapshotには少なくとも `scoreVersion` と7軸寄与を再現できるbreakdownを持たせる。新経路の配点表は実装と同じ場所で定数化し、各重みの合計、0点/100点境界、全7軸の感度、対称性、決定性、旧経路の回帰をテストする。最適化とUIは保存されたscore/versionを使い、別計算を持たない。
+`PairCompatibility` は `aiSevenAxisApplied` と、適用時の `aiSevenAxisEvaluation`（18点中の寄与・100換算指数・軸別内訳）、未適用時の `aiSevenAxisFallback`（理由・対象犬ID）を持つ。当日案の `MatchingSuccess` を保存することで同じ結果を最適化とUIに渡す。配点合計、0〜100境界、全7軸の感度、対称性、決定性、旧経路の回帰をテストする。
 
 監査は選択スタッフ、操作日時、操作種別、対象案、理由、元案参照を保存する。最新proposedのみ承認対象・待ち件数とし、旧proposedはsupersededへ遷移する。手動部屋編集と未確定の5分類は追加しない。
 
@@ -80,4 +80,4 @@ AI失敗、不正応答、認証/保存/読み戻し失敗、無料枠上限は�
 
 基点のモック統合検証記録は [対応表](integration/pawpals-mapping.md) を参照。ローカルAuth/Firestore emulatorとAI test doubleのブラウザE2E、および別途テキスト1件の実Worker/OrcaRouter疎通が記録されている。これは新7軸・当日対象・監査の検証ではない。
 
-今回の変更は [受入条件](integration/pawpals-acceptance.md) に実行commit・環境・結果・証拠を揃えてから検証済みへ進める。既存公開サービスがあることだけで最新コードやRulesを配備済みと扱わない。施設認証/招待版、今回追加要件とも公開配備の証拠を別途記録する。
+最終統合 `b1cb969` でtypecheck、19ファイル127件、production build、Rules実emulator、ローカル統合E2Eに成功した。E2Eでは2頭の相性96.3%、7軸16.3/18点、軸別内訳、390px表示、console error/warn 0を確認した。Firebase Hosting / Rules / Indexesのdeployはexit 0。公開URLのHTTP 200、最終asset、ログインUI、ready状態、console 0、Worker healthを確認済み。本番資格情報がないため公開側の認証後E2Eは未実施。

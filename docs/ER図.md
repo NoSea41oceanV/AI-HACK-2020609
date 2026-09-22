@@ -63,7 +63,7 @@ erDiagram
 ## データの意味と表示
 
 - 全ペア結果は当日選択n頭の全 `n(n-1)/2` 件であり、部屋内のペアだけではない。
-- PairResultは0〜100のscoreに加え、`scoreVersion` と既存信号/7軸の寄与を再現できるbreakdownを保持する。両犬に7軸がある場合だけ全7軸経路を使い、欠損時は既存経路を記録する。
+- PairResultは0〜100のscoreに加え、`aiSevenAxisApplied`、適用時の `aiSevenAxisEvaluation`、未適用時の `aiSevenAxisFallback` を保持する。両犬に7軸がある場合だけ全7軸経路を使い、欠損時は既存経路と不足した犬IDを記録する。
 - 7軸を使うscoreでも既存5指標・体格・遊び方を保持する。hardConstraintCodesとallowedはscoreから独立させる。
 - 待ち件数は最新未確定案に基づき、履歴件数の合計ではない。
 - 既存5軸をモック7軸へ名前だけ変更しない。モック固定値を補完値にしない。
@@ -72,7 +72,7 @@ erDiagram
 
 ## backend確定契約と実装証拠
 
-次の追加パスはすべて `facilities/{facilityId}/` 配下。backendは `3048cc6` / `48e0e02` / `d6431c9` で実装・検証され、統合branchへ `d12a381` / `3350193` / `373f39e` として取り込まれた。Firestore indexesも追加済み。公開配備済みとは記載しない。
+次の追加パスはすべて `facilities/{facilityId}/` 配下。backendは `3048cc6` / `48e0e02` / `d6431c9` で実装・検証され、統合branchへ `d12a381` / `3350193` / `373f39e` として取り込まれた。最終統合 `b1cb969` のFirestore Rules / Indexesは公開配備済み。
 
 | パス | フィールド |
 |---|---|
