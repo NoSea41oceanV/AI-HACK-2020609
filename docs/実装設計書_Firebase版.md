@@ -1,90 +1,77 @@
 # Firebase版 実装設計書
 
-> 目標仕様と2026-09-22時点の確認済み状態を記す。Firebase Hosting / Rules、Cloudflare Worker / OrcaRouter、実Firestore read-back、公開E2Eまで確認済みである。本番運用向け認証を備えた構成ではない。
+更新日: 2026-09-22。基点 `6609e68` と [確定設計書](ペットホテル自律AIエージェント_設計書_v4.md) を対応付ける。
+ここでいう基点コード、既存検証記録、今回の追加要件を混同しない。新機能の受入状況は [証拠対応表](integration/pawpals-acceptance.md) を参照。
 
-## 1. 採用構成
+## 1. サービスと責務
 
-| 責務 | 技術・制約 |
+| サービス・処理 | 責務 |
 |---|---|
-| UI | React / TypeScript / Vite |
-| 受付・結果保存 | Firebase Cloud Firestore（Spark） |
-| 静的配信 | Firebase Hosting（Spark） |
-| AI秘密鍵プロキシ | Cloudflare Workers Free |
-| AI | OrcaRouter。SecretはWorkerに保持 |
-| 画像・動画 | 写真と動画由来JPEGフレームだけを一時解析。原本を永続保存しない |
-| 相性・最適化 | TypeScript決定ロジック。全ペア採点後に最適化 |
-| 利用者 | 単一利用者、固定URL |
+| React / TypeScript / Vite | 飼い主フォーム、スタッフ画面、ブラウザ内媒体処理、全ペア採点と部屋最適化 |
+| Firebase Hosting（Spark） | React静的アプリの配信 |
+| Firebase Auth | 施設メール/パスワードログイン。選択スタッフは施設配下のプロフィール |
+| Cloud Firestore（Spark） | 施設・招待・受付・プロフィール・提案・観測の保存。今回、当日対象・部屋設定・監査を拡張 |
+| Cloudflare Workers Free | AI秘密鍵を保持し、入力検証後にOrcaRouterへ中継 |
+| OrcaRouter | 構造化分析結果を返す。採用モデルを実際の応答・設定に基づいて扱う |
 
-Firebase Project IDは `pawpair-ai-hack-2026`、Firestoreリージョン `asia-northeast1`、Sparkプランである。Hosting / Rulesを配備し、`https://pawpair-ai-hack-2026.web.app` と実データのread-backを確認済みである。
+Firestoreは `pawpair-ai-hack-2026` / `asia-northeast1`。Firebase Cloud Functions / Cloud Storage、有料Worker機能を追加しない。課金が必要なら停止する。
 
-Firebase Cloud Functions、Firebase Cloud Storage、Workers Paidを使わない。
+## 2. 基点コードの状態
 
-## 2. 現状コードと差分
+- `src/App.tsx` は施設認証・スタッフ選択、招待発行、施設スコープの読み取り、提案/確定保存、手動観測からの再計算を接続している。
+- `src/pages/personalityOptions.ts` の既存6問は5問を `personality`、遊び方を `playStyle` へ文字列化する。今回採用する実モックの選択肢とは差がある。
+- `OwnerIntake` は施設・招待ID、飼い主情報、基本犬情報、自由記述、媒体メタデータ、AI分析・5軸を保持する。
+- `MatchingSnapshot` は `proposed | confirmed` の2状態。今回の `rejected / superseded`、担当監査、対象日は未統合。
+- 計算対象は基点で取得した登録犬、部屋は暫定生成であり、日付付き明示選択・施設別保存への拡張が必要。
+- 現Firestore Rulesは施設スコープと招待境界を持つ。旧トップレベルの公開デモcollectionと区別する。
+- Workerの基点契約は `personality / playStyle / concerns` と一時画像。今回の構造化入力・7軸契約はbackendから先行確定連絡を受領済み。実装・検証証拠は別途待つ。
 
-- Repositoryには開発用localStorage実装もあるが、AppはFirebase未設定時にエラー表示し、成功扱いでlocalStorageへ切り替えない。Firebase有効時のOwnerIntakeをlocalStorageへミラーしない。
-- AppはOwnerFormからWorker解析を実行し、構造化分析結果を含む受付をFirestoreへcreateする。その後Profileを保存・read-backしてから全ペア採点・最適化を保存する。公開E2Eでこの経路を確認済みである。
-- `AIWorkerClient` とWorker `/api/analyze` はフォーム送信動線へ接続済み。payloadは性格・遊び方・注意事項の3項目と画像だけで、その他のprofile keyを作らない。
-- 写真は画像data URLとして送る。動画はブラウザで25%・75%地点から最大2枚、長辺1280px、JPEG品質0.82の静止画を抽出し、元動画と動画内音声はWorkerへ送らない。
-- WorkerはWorkers Freeへ配備済みで、health、Secret参照、media storage無効、OrcaRouter実構造化分析を確認済み。旧`prompt`は400、raw動画・音声は415で拒否する。
-- `/api/media` は410を返して永続保存を拒否し、受付にはメディアのファイル名・種類・サイズだけを保存する。
-- OwnerIntakeはFirestore create-onlyであるため、Worker解析完了後にAI結果を含む1レコードを一度だけcreateする。
-- 写真5MiB、動画20MiB、合計20MiBのフォーム入力制限を適用する。Workerへ届くのは1枚の写真と最大2枚の動画フレームを合わせた最大3画像である。
+## 3. 追加実装の接続順
 
-## 3. 登録・解析フロー
+1. モック由来の健康・社会化・行動6問を構造化入力へ追加し、7軸出力の型を確定する。
+2. 保存Repository、AIクライアント/Worker、Rules、validation、同意文を同じ契約へ揃える。既存自由記述と旧データの読み取り互換を検証する。
+3. スタッフが施設・対象日・対象犬を明示選択し保存する。施設別部屋設定も保存・読み戻しする。
+4. 選択対象だけの全ペア採点後、保存した部屋設定で最適化する。
+5. 最新案、旧案のsuperseded化、元案参照、担当と理由の監査を整合させて保存する。
+6. 選択中スタッフによる最新案の承認/却下、最新未確定案だけの待ち件数、観測からの再計算を画面へ接続する。
+7. 手動観測と将来入力源のadapter契約を分け、カメラIFは型/境界/テストまでに留める。
 
-1. 固定URLから飼い主フォームを送信する。
-2. AI入力を性格・遊び方・注意事項だけから組み立てる。`owner.name` と `owner.contact` はpayloadに含めない。
-3. 写真を画像として、動画をブラウザ内で最大2枚のJPEGフレームへ変換してWorkerへ送り、OrcaRouterで解析する。元動画・音声は送らない。
-4. タイムアウト、4xx/5xx、不正応答、無料枠超過はエラー状態として表示する。キーワード判定、固定結果、擬似AI応答へ切り替えない。
-5. 構造化応答を検証し、受付情報、性格パラメータ、根拠/信頼度を1件のOwnerIntakeとしてFirestoreへcreateする。バイナリは保存しない。
-6. 非PIIのPetProfileを保存してread-backする。保存またはread-backが失敗したら後続処理を成功扱いにしない。
-7. 一時媒体を破棄し、永続メディア領域・ログ・URL queryへ残さない。
-8. 全対象ペットの確定後、n(n-1)/2の全ペアを採点する。
-9. 全ペア結果を保持した後に最適配置を計算し、提案を保存する。
-10. オペレーターが提案を確認して確定する。
+`App.tsx` は[09]単独所有。型/Rules/データ、UI、App統合を別commitにする。
 
-## 4. Firestoreデータ
+## 4. 保存・認証境界
 
-コレクション案は [ER図](ER図.md) を参照する。最低限、受付、非PIIのペットプロフィール、AI分析結果、全ペア結果と部屋案を区別する。受付の名前・連絡先はFirestore内だけに保持し、AI入力payloadやWorkerへ渡してはならない。公開Rulesは認証を省いたハッカソン限定構成で、匿名第三者の書込みによる無料枠消費リスクがある。本番用の安全なアクセス境界とは見なさない。
+[ER図](ER図.md) の基点collectionを維持し、施設UIDと有効な施設・スタッフ契約に従う。招待発行者のstaffIdは施設内非公開メタデータに保持する。招待トークンはURL fragmentで扱い、Firestoreにはハッシュを保存する。招待は期限なし、受付は一度だけ作成可能という既存契約を維持する。
 
-分析結果を保存する場合は受付との参照ID、モデル識別子、分析日時、構造化profile、根拠・confidence、エラー状態を記録する。写真/動画バイナリ、署名URL、取得可能な長期メディアURLは保存しない。
+今回の先行確定契約は施設配下の `dailyOperations/{YYYY-MM-DD}`、`settings/rooms`、`operationPlans/{id}`、`operationAudit/{id}`。詳細は[ER図](ER図.md)。型・API契約の受領は実装・配備完了を意味しない。旧proposedの無効化と新案保存が途中失敗した場合や同時承認時の整合性を、Repository/Rules/統合テストで確認する。
 
-## 5. AI Worker契約
+### 追加APIの先行確定契約
 
-| API | 目的 | 入出力境界 |
-|---|---|---|
-| `GET /health` | Workerの状態確認 | Secret値を返さない |
-| `POST /api/analyze` | 3項目のprofileと一時画像をOrcaRouterへ送り、構造化分析を返す | 飼い主名・連絡先・元動画・音声なし。失敗は明示エラー |
+- `StructuredIntakeAnswers`: モック由来18キー。3自由記述は各1000文字以下、残りはモックの日本語選択肢。新しい `pet.structured` 受付には `consent: {version:'2026-09', accepted:true, acceptedAt:string}` が必須。
+- `PersonalityAxes`: extraversion / sociability / neuroticism / trainability / resourceGuarding / assertiveness / resilience、整数0〜100。構造化分析時は必須。`aiAnalysis.personalityAxes` と `matchingProfile.personalityAxes` に同値保存し、`PetProfile.personalityAxes?` へ伝搬。旧5軸互換を保持。
+- `OwnerAnalysisInput.structured?` → Worker `profile.structured`。飼い主情報・施設認証情報をAI入力へ混入させない。
+- `FirestoreDailyOperationRepository`: getDay / getPlan / getRooms / saveDay / saveRooms / recalculate / decide / listAudit。更新はexpectedRevisionと選択staffIdを受け、transactionと監査を伴う。
+- `recalculate` はexpectedRoomsRevisionも検証。`decide` は最新headと日付・対象revision・部屋revisionの一致案だけをconfirmed/rejectedへ進める。旧日付なし履歴は当日集計しない。
+- `ManualObservationRecord`: 既存観測に `source:'manual', staffId, petIds, operationDate` を追加。createManualがsource/scenarioIdをmanualへ固定。listManualを提供。同ID同内容は再送可能、別内容は拒否。スタッフ有効性・対象犬の施設所属を確認する。
+- 将来IFは `src/domain/observationIngestion.ts`。cameraはunsupported。factoryの最終export名、手動観測のpetIds上限2、部屋minOccupancy省略時0の正規化はbackend実装報告で確定を確認する。
 
-永続R2へのmedia upload APIは本要件では使用しない。現コードは写真と動画から抽出したJPEGフレームだけを一時画像data URLで分析リクエストに含め、永続保存APIを無効化している。Workerはraw動画・音声を415で拒否し、healthの `mediaStorageConfigured` はfalseである。API keyは `ORCAROUTER_API_KEY` SecretとしてWorkerだけに設定し、以前チャットへ貼付したキーは再利用しない。
+契約出典: backendタスクの2026-09-22 A/B/C先行連絡。対象branch `feat/pawpals-data-contracts`。commit SHAとテスト結果は未受領。
 
-## 6. ペア採点と最適化
+## 5. AI・媒体・エラー
 
-`calculateAllPairCompatibilities` 相当の決定関数で全ての異なるペアを列挙し、スコアと禁止制約を返す。全件完了前に部屋探索を開始しない。最適化は全ペットを一部屋ずつ配置し、部屋定員とhard blockを満たす解のうち目的関数を最大化する。解なしは理由を返し、危険案や固定案を提示しない。AIは安全制約、スコア、配置を上書きしない。
+`GET /health` は状態確認、`POST /api/analyze` は構造化分析。SecretはWorkerだけに保持する。拡張profileと7軸の許可キー、値域、欠損、AI応答の検証を両端で同期し、フォームだけを先行させない。
 
-## 7. 失敗と費用境界
+写真は画像data URL、動画はブラウザ内の25%/75%地点から最大2枚のJPEG（長辺1280px、品質0.82）にする。基点の入力上限は写真5MiB、動画20MiB、合計20MiB、Workerへ最大3画像。原本・音声・飼い主名・連絡先をAIに送らず、request bodyをログ出力しない。媒体原本を保存せず、`/api/media` は410、raw動画/音声は415で拒否する既存境界を維持する。
 
-| 失敗 | 動作 |
-|---|---|
-| Firebase設定なし | 実フローを成功扱いにせず、設定エラーを示す。開発用ローカル画面はAI接続状態と分離して表示 |
-| Firebase書込/読戻失敗 | 明示エラー。AI解析や成功表示へ進まない |
-| Worker/OrcaRouter失敗・不正応答 | 明示AIエラー。ローカル判定や固定結果を返さない |
-| 無料枠上限 | 新規処理を止め、エラーを表示。自動課金/有料化なし |
-| 部屋最適化が解なし | 理由を表示。代替の安全でない配置を生成しない |
+AI失敗、不正応答、認証/保存/読み戻し失敗、無料枠上限は明示エラー。成功済みの固定結果やローカル代替へ黙って切り替えない。保存しない入力欄、固定のAI説明、架空の観測ログを追加しない。
 
-## 8. 設定・Secret
+## 6. 計算・表示・監査
 
-Firebase Project ID `pawpair-ai-hack-2026` / Firestore `asia-northeast1` / Spark / Hosting / Rules / 実read-backは確認済み。公開Web設定は `.env.local` に置き、`.env.example` はダミー値のままにする。リポジトリの `.firebaserc` は実Project IDを設定済みなので上書きしない。
+相性スコアは0〜100の既存数値を%表示する。全ペア完了後、定員・最低頭数・全頭配置・hard blockを満たす解を選ぶ。基点の選択基準は同室ペアの `score - 50` 合計、合計スコア、ID順。今回の入力拡張は配点変更を自動的に意味しない。
 
-Cloudflare Workers Freeの `pet-hotel-agent-api` と、新規 `ORCAROUTER_API_KEY` Secret参照、実OrcaRouter応答は確認済みである。以前チャットに貼られたキーは使用禁止。許可済みの外部送信範囲は性格・遊び方・注意事項と画像に限り、動画はJPEGフレームへ変換する。飼い主名・連絡先・元動画・音声とrequest bodyはログへ出さない。
+監査は選択スタッフ、操作日時、操作種別、対象案、理由、元案参照を保存する。最新proposedのみ承認対象・待ち件数とし、旧proposedはsupersededへ遷移する。手動部屋編集と未確定の5分類は追加しない。
 
-## 9. 検証・完了条件
+## 7. 検証と配備
 
-- 単体: n(n-1)/2全ペア、禁止条件、定員、解なし、決定性。
-- データ: AI分析を含む受付の保存と、AI由来性格パラメータを含む非PIIプロフィールのread-backを公開E2Eで確認。OwnerIntake localStorage keyはnull。
-- Worker: 実配備先へのhealthとOrcaRouter構造化応答、旧payload 400、raw動画/音声415、media storage falseを確認済み。
-- メディア: 解析後に原本、R2オブジェクト、一時URLが残らず、動画から抽出したJPEG以外と動画音声が外部へ送られないこと。
-- 統合E2E: 架空2頭でフォーム→Worker→OrcaRouter→Firestore受付保存→非PIIプロフィール保存/read-back→全1ペア採点→1部屋最適化→当日観測保存・再計算→施設オペレーター確定まで成功。
-- プラン: Firebase Spark、Cloudflare Workers Freeであること。
+基点のモック統合検証記録は [対応表](integration/pawpals-mapping.md) を参照。ローカルAuth/Firestore emulatorとAI test doubleのブラウザE2E、および別途テキスト1件の実Worker/OrcaRouter疎通が記録されている。これは新7軸・当日対象・監査の検証ではない。
 
-最終検証はアプリ34/34、Worker 15/15、typecheck、build、`qa-preflight` が成功した。公開画面のconsole error/warnは0件、390 × 844のモバイル表示も成功した。ブラウザfetchの `Illegal invocation` はcommit `9078b51` で修正済みである。
+今回の変更は [受入条件](integration/pawpals-acceptance.md) に実行commit・環境・結果・証拠を揃えてから検証済みへ進める。既存公開サービスがあることだけで最新コードやRulesを配備済みと扱わない。施設認証/招待版、今回追加要件とも公開配備の証拠を別途記録する。
