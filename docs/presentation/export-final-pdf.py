@@ -5,12 +5,12 @@ from pypdf import PdfReader
 from reportlab.pdfgen import canvas
 
 root = Path(__file__).resolve().parents[2]
-output = root.parents[1] / 'output/pawpair-pitch/PAWLAND_発表資料_利用フロー改訂版.pdf'
-render_dir = root / 'tmp/pawland-final'
+output = root.parents[1] / 'output/pawpair-pitch/PAWLAND_発表資料_機能紹介改訂版.pdf'
+render_dir = root / 'tmp/pawland-features'
 
 c = canvas.Canvas(str(output), pagesize=(960, 540))
-c.setTitle('PAWLAND - 発表資料 利用フロー改訂版')
-for page_number in range(1, 13):
+c.setTitle('PAWLAND - 発表資料 機能紹介改訂版')
+for page_number in range(1, 16):
     c.drawImage(str(render_dir / f'final-{page_number}.png'), 0, 0, width=960, height=540)
     if page_number == 5:
         c.linkURL('https://www.yano.co.jp/press-release/show/press_id/4169', (480, 312, 920, 405), relative=0)
@@ -20,7 +20,7 @@ for page_number in range(1, 13):
 c.save()
 
 reader = PdfReader(output)
-assert len(reader.pages) == 12
+assert len(reader.pages) == 15
 assert all(abs(float(page.mediabox.width) - 960) < 0.01 for page in reader.pages)
 assert all(abs(float(page.mediabox.height) - 540) < 0.01 for page in reader.pages)
 print(f'Created {output} ({len(reader.pages)} pages)')

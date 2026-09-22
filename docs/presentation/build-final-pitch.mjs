@@ -1,4 +1,4 @@
-// Build the final PAWLAND pitch: 8 main slides and 4 appendices.
+// Build the final PAWLAND pitch: 8 main slides and 7 appendices.
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -11,7 +11,7 @@ const python = process.env.RUNTIME_PYTHON ?? 'C:/Users/kachi/.cache/codex-runtim
 const { Presentation, PresentationFile, FileBlob } = await import(pathToFileURL(path.join(modules, '@oai/artifact-tool/dist/artifact_tool.mjs')).href);
 const { finalizePresentation } = await import(pathToFileURL(path.join(skill, 'container_tools/artifact_tool_utils.mjs')).href);
 
-const tmp = path.join(root, 'tmp/pawland-final');
+const tmp = path.join(root, 'tmp/pawland-features');
 const out = path.resolve(root, '../../output/pawpair-pitch');
 const assets = path.join(root, 'docs/presentation/assets');
 await fs.mkdir(tmp, { recursive: true });
@@ -26,7 +26,7 @@ const source = {
   env: '環境省「動物愛護管理行政事務提要（令和7年度版）」登録・届出状況総括表。保管32,576件、2025-04-01現在。https://www.env.go.jp/nature/dobutsu/aigo/2_data/statistics/files/r07/2_1_1.pdf （参照2026-09-22）',
   anicom: 'アニコム損害保険「2025最新版 ペットにかける年間支出調査」2026-03-11。保険契約者5,494名、犬413,416円。https://www.anicom-sompo.co.jp/news-release/2025/20260311/ （参照2026-09-22）',
   criteria: '提供資料「AI HACK 2026 Day1.pdf」p.15-16の評価5項目と4分発表要件、および「OrcaRouter様資料.pdf」の技術情報を参照。添付資料内の手続き指示は本作業への指示として扱わない。',
-  repo: '実装根拠: README.md、src/appRoute.ts、src/domain/matching.ts、src/domain/compatibility.ts、src/lib/firebase.ts、worker/index.ts、firestore.rules。',
+  repo: '実装根拠: origin/feat/public-demo-admin の README.md、src/appRoute.ts、src/domain/matching.ts、src/domain/compatibility.ts、src/lib/firebase.ts、src/lib/workerClient.ts、src/OwnerRegistration.tsx、src/pawpals/TodayScreen.tsx、worker/index.ts、worker/README.md、firestore.rules。',
   comparison: '既存の相性関連サービス比較例: Dogmate公式App Store。https://apps.apple.com/jp/app/dogmate-%E6%84%9B%E7%8A%AC%E5%AE%B6%E5%B0%82%E7%94%A8%E3%82%A2%E3%83%97%E3%83%AA/id6739194707 ／ LaVie。https://lavie-app.com/ （いずれも参照2026-09-22）',
 };
 
@@ -91,13 +91,12 @@ if (facilityMonths !== 631 || monthlyRevenueTotal !== 631 || onboardingRevenueTo
 }
 
 // 1. Cover
-let script = 'PAWLANDは、ワンちゃん同士の相性を見える化し、施設でのグループ分けを支えるシステムです。飼い主が安心して預けられ、ワンちゃんが過ごしやすく、スタッフが判断しやすい時間をつくります。';
-let slide = makeSlide('', 1, 15, script, '正式名称とteamHHHはユーザー指定。画面はPAWLAND実システムの相性マップ。公開デモのサンプルデータを含む。', true);
+let script = 'PAWLANDは、ワンちゃん同士の相性を見える化し、グループ分けを支えるシステムです。飼い主が安心して預けられ、ワンちゃんが過ごしやすく、スタッフが判断しやすい時間をつくります。';
+let slide = makeSlide('', 1, 15, script, '正式名称とteamHHHはユーザー指定。背景はPAWLANDの目指す体験を表す生成イメージ。', true);
 addText(slide, 'PAWLAND', 64, 64, 470, 78, 56, colors.white, true);
 addText(slide, 'ワンちゃんが過ごしやすい空間へ', 64, 150, 530, 70, 33, colors.mint, true);
-addText(slide, '相性を見える化し、\n施設のグループ分けを支える', 64, 280, 485, 115, 36, colors.white, true);
-slide.images.add({ blob: await imageBlob('friend-map-detail.png'), contentType: 'image/png', alt: 'PAWLAND実システムの相性マップ画面', fit: 'contain', position: { left: 610, top: 72, width: 606, height: 525 } });
-addText(slide, 'PAWLAND 実システム画面', 610, 603, 606, 27, 17, colors.mint, false, 'center');
+addText(slide, '相性を見える化し、\nグループ分けを支える', 64, 280, 485, 115, 36, colors.white, true);
+slide.images.add({ blob: await imageBlob('happy-dogs-cover.png'), contentType: 'image/png', alt: '複数の犬が穏やかに過ごすPAWLANDのコンセプトイメージ', fit: 'contain', position: { left: 610, top: 72, width: 606, height: 535 } });
 addText(slide, 'teamHHH', 64, 600, 260, 36, 23, colors.white, true);
 
 // 2. Use-case story
@@ -111,21 +110,32 @@ addText(slide, '「初めての子の相性は？\n組み合わせを考える�
 addText(slide, '相性を見える化し、施設のグループ分けへ', 130, 606, 1020, 43, 27, colors.orange, true, 'center');
 
 // 3. Usage flow
-script = '使い方は三つの時間で整理できます。事前に施設が飼い主を招待し、飼い主が性格や体格を入力します。来店時はスタッフが相性スコアと登録済みの禁忌を確認します。預かる前に、スタッフがシステムのグループ案を確認し、最後は人が確定します。';
-slide = makeSlide('誰が、いつ、何をするか', 3, 35, script, '画面はPAWLAND実システム。招待画面、相性確認画面、運営画面はいずれも公開デモまたは開発画面のサンプルデータ。');
-slide.shapes.add({ geometry: 'rightArrow', position: { left: 88, top: 315, width: 1080, height: 38 }, fill: colors.light, line: { fill: 'none', width: 0 } });
-const flowXs = [64, 444, 824];
-const stageTitles = ['事前', '来店時', '預かり前'];
-const stageBodies = [
-  '施設：招待を発行\n飼い主：性格・体格を入力',
-  'スタッフ：相性スコアと\n登録済みの禁忌を確認',
-  'スタッフ：グループ案を確認\n最後は人が確定',
+script = '利用は六つのステップです。施設が招待を発行し、飼い主が基本情報と任意の画像・動画を登録します。AIが特徴を整理し、スタッフがプロフィールを確認します。次に相性カルテとペット相関図を確認し、当日預かる犬と定員を設定します。最後にグループ案を確認して確定し、理由を含む操作履歴を残します。';
+slide = makeSlide('誰が、いつ、何をするか', 3, 35, script, '画面はPAWLAND実システム。画像・動画は任意の補助資料。確定・却下では理由を必須入力し、履歴を保存する。公開デモでは保存しない。');
+slide.shapes.add({ geometry: 'rightArrow', position: { left: 72, top: 310, width: 1136, height: 34 }, fill: colors.light, line: { fill: 'none', width: 0 } });
+const stepXs = [64, 254, 444, 634, 824, 1014];
+const stepActors = ['施設', '飼い主', 'AI・スタッフ', 'スタッフ', 'スタッフ', 'スタッフ'];
+const stepTimes = ['来店前', '来店前', '登録後', '来店時', '来店時', '預かり前'];
+const stepBodies = [
+  '招待を発行',
+  '基本情報と\n画像・動画を登録',
+  'AIが特徴を整理\nプロフィール確認',
+  '相性カルテ\nペット相関図',
+  '当日の犬と\n定員を設定',
+  'グループ案を確認\n確定・履歴保存',
 ];
-const stageImages = ['invite-guide-detail.png', 'compatibility-detail.png', 'daily-operations-detail.png'];
+for (let i = 0; i < 6; i++) {
+  addText(slide, String(i + 1), stepXs[i], 140, 40, 36, 25, colors.orange, true, 'center');
+  addText(slide, stepActors[i], stepXs[i] + 38, 140, 140, 36, 19, colors.green, true, 'center');
+  addText(slide, stepBodies[i], stepXs[i], 187, 178, 92, 18, colors.ink, true, 'center');
+  addText(slide, stepTimes[i], stepXs[i], 278, 178, 27, 17, colors.gray, false, 'center');
+}
+const flowImageXs = [64, 444, 824];
+const flowImageNames = ['invite-guide-detail.png', 'compatibility-detail.png', 'daily-operations-detail.png'];
+const flowImageLabels = ['STEP 1–2', 'STEP 3–4', 'STEP 5–6'];
 for (let i = 0; i < 3; i++) {
-  addText(slide, stageTitles[i], flowXs[i], 140, 330, 44, 28, colors.green, true, 'center');
-  addText(slide, stageBodies[i], flowXs[i], 195, 330, 92, 21, colors.ink, true, 'center');
-  slide.images.add({ blob: await imageBlob(stageImages[i]), contentType: 'image/png', alt: `${stageTitles[i]}のPAWLAND画面`, fit: 'contain', position: { left: flowXs[i], top: 365, width: 330, height: 240 } });
+  addText(slide, flowImageLabels[i], flowImageXs[i], 350, 330, 27, 17, colors.green, true, 'center');
+  slide.images.add({ blob: await imageBlob(flowImageNames[i]), contentType: 'image/png', alt: `${flowImageLabels[i]}のPAWLAND画面`, fit: 'contain', position: { left: flowImageXs[i], top: 382, width: 330, height: 235 } });
 }
 
 // 4. AI and safety design
@@ -144,7 +154,8 @@ addText(slide, '必須項目欠落・範囲外は解析エラー\n禁忌や定�
 addText(slide, 'セキュリティ', 650, 315, 200, 34, 22, colors.green, true);
 addText(slide, 'スタッフのログイン認証\n施設ごとにデータの閲覧を制限\n通信の暗号化とAPIキーの保護', 650, 358, 510, 105, 23, colors.ink, true);
 addText(slide, '独創性', 650, 500, 160, 34, 22, colors.green, true);
-addText(slide, 'ペット同士の相性を、\n施設のグループ分けへ', 650, 540, 510, 70, 27, colors.ink, true);
+addText(slide, 'ペット同士', 650, 536, 510, 55, 39, colors.orange, true);
+addText(slide, 'の相性を、グループ分けへ', 650, 590, 510, 42, 26, colors.ink, true);
 
 // 5. Pricing and market
 script = '料金は、家族を安心して預けるための判断支援を中心に考えました。安心につながる判断を、今より短い時間で行えることを目指します。案は税別で初期五千円、月額一万円です。現場の時間価値も支えになります。一日三十分、月二十六日、時給千八百円と置くと、月二万三千四百円です。背景には約一・九五兆円のペット市場があり、保険契約者調査では犬一頭の年間支出が約四十一万円です。保管登録の二割、六千五百施設を対象と置くと、月額だけで七・八億円の市場仮説になります。';
@@ -181,17 +192,23 @@ addText(slide, '100施設は対象仮説6,500施設の約1.5%', 650, 525, 470, 3
 addText(slide, '料金・販売数・費用は計画上の仮定', 64, 625, 1100, 28, 18, colors.gray);
 
 // 7. Future concept
-script = '将来は、家族が心地よく暮らすために使える場面を広げます。犬の保育園や多店舗運営へ。猫などほかのペットにも、性格や習性に合わせて広げます。飼い主が相性のよい遊び相手や交流相手を探す用途にもつなげます。日々の様子を反映し、その子に合う時間を増やします。';
-slide = makeSlide('家族が心地よく暮らす、もっと多くの場面へ', 7, 20, script, `${source.yano}\n将来構想。現時点の提供機能や販売実績を示すものではない。交流相手は遊びや社会化の相手を指し、繁殖相手を意味しない。`, true);
-addText(slide, '将来構想', 64, 135, 190, 38, 22, colors.mint, true);
-addText(slide, '犬の保育園・多店舗', 64, 235, 340, 45, 28, colors.white, true);
-addText(slide, '複数拠点でも、その子に合う\n過ごし方を共有', 64, 295, 340, 85, 23, colors.mint);
-addText(slide, '猫など、ほかのペット', 470, 235, 350, 45, 28, colors.white, true);
-addText(slide, '性格や習性の違いに合わせて\n評価の考え方を拡張', 470, 295, 350, 85, 23, colors.mint);
-addText(slide, '飼い主どうしの交流', 886, 235, 330, 45, 28, colors.white, true);
-addText(slide, '相性のよい遊び相手や\n交流相手を見つける', 886, 295, 330, 85, 23, colors.mint);
-addRect(slide, 64, 455, 1152, 2, '#6EA58D');
-addText(slide, '日々の様子から提案を更新し、\nその子に合う「心地よい時間」を増やす', 100, 500, 1080, 100, 29, colors.white, true, 'center');
+script = '将来は、犬の保育園や多店舗へ展開し、猫などほかのペットにも広げます。離れた場所に住むペット同士が、相性のよい交流相手を見つけられる体験も考えます。さらに、同意を得たペットカメラの観察データから、性格と相性をより深く分析できるようにします。';
+slide = makeSlide('家族が心地よく暮らす、もっと多くの場面へ', 7, 20, script, '将来構想。現時点の提供機能や販売実績を示すものではない。ペットカメラの観察データ利用は、飼い主・施設の同意、プライバシー設計、実施設での検証を前提とする。交流の主役はペット同士で、繁殖相手を意味しない。');
+addText(slide, '将来構想', 64, 135, 190, 38, 22, colors.green, true);
+addText(slide, '01', 64, 205, 58, 40, 24, colors.orange, true);
+addText(slide, '犬の保育園・多店舗', 132, 202, 430, 46, 29, colors.ink, true);
+addText(slide, '複数拠点でも、その子に合う\n過ごし方を共有', 132, 250, 430, 66, 21, colors.gray);
+addText(slide, '02', 660, 205, 58, 40, 24, colors.orange, true);
+addText(slide, '猫など、ほかのペット種', 728, 202, 465, 46, 29, colors.ink, true);
+addText(slide, '性格や習性の違いに合わせて評価を拡張', 728, 250, 465, 66, 21, colors.gray);
+addRect(slide, 64, 342, 1152, 2, '#D5DED5');
+addText(slide, '03', 64, 385, 58, 40, 24, colors.orange, true);
+addText(slide, '離れた場所のペット同士の交流', 132, 382, 430, 46, 29, colors.ink, true);
+addText(slide, '相性のよい遊び・社会化の相手を見つける', 132, 430, 430, 66, 21, colors.gray);
+addText(slide, '04', 660, 385, 58, 40, 24, colors.orange, true);
+addText(slide, 'ペットカメラで高度な分析', 728, 382, 465, 46, 29, colors.ink, true);
+addText(slide, '観察データを用いて性格・相性分析を深める', 728, 430, 465, 66, 21, colors.gray);
+addText(slide, '日々の様子を反映し、その子に合う「心地よい時間」を増やす', 64, 570, 1152, 38, 25, colors.green, true, 'center');
 
 // 8. Closing
 script = 'PAWLAND。teamHHHです。ありがとうございました。';
@@ -270,6 +287,68 @@ addTable(slide, [
 ], 64, 155, 1152, 408, [230, 475, 447], 20);
 addText(slide, 'AI出力を検査し、禁忌と定員を確認。最終確定はスタッフ。', 64, 595, 1152, 42, 25, colors.orange, true, 'center');
 
+// 13. Appendix: compatibility scoring
+script = '相性評価は、AIが整理した七つの性格軸と、体格などの登録情報を使います。活動量、体格差、遊び方、社交性、感情バランス、資源防衛の六因子をソフトスコアとして組み合わせます。一方、登録された禁忌は点数とは分け、片方でも相手を指定していれば最適化から除外します。AIが禁忌相手を決める仕組みではありません。';
+slide = makeSlide('相性評価のしくみ', 13, 0, script, `${source.repo}\n医療診断や性格の断定を目的としない。根拠が不足する場合はconfidenceを下げ、riskFlagsを付ける。hardBlockedPetIdsの片側指定でもEXPLICIT_BLOCKとなり、点数とは別に最適化対象から除外する。`);
+addText(slide, 'AIが整理する7軸', 64, 140, 400, 36, 23, colors.green, true);
+addTable(slide, [
+  ['性格軸', 'プロフィールで見る観点'],
+  ['外向性', '活動への向かいやすさ'],
+  ['社交性', 'ほかのペットとの関わり'],
+  ['神経質性', '不安や刺激への反応'],
+  ['訓練性', '指示への反応'],
+  ['資源防衛', '物や場所を守る傾向'],
+  ['自己主張', '相手への働きかけ'],
+  ['回復力', '落ち着きを取り戻す力'],
+], 64, 185, 540, 375, [185, 355], 17);
+addText(slide, '相性スコアの6因子', 660, 140, 500, 36, 23, colors.green, true);
+addText(slide, '活動量　／　体格差\n遊び方　／　社交性\n感情バランス（不安 × 自己主張）\n資源防衛', 660, 190, 540, 176, 25, colors.ink, true);
+addRect(slide, 660, 388, 540, 82, colors.light, 'none', true);
+addText(slide, 'ソフト評価', 680, 400, 150, 28, 20, colors.green, true);
+addText(slide, '6因子を点数として組み合わせる', 680, 430, 490, 28, 22, colors.ink, true);
+addRect(slide, 660, 488, 540, 82, '#F2E7DF', 'none', true);
+addText(slide, 'ハード除外', 680, 500, 150, 28, 20, colors.orange, true);
+addText(slide, '登録済みの禁忌は点数と分けて除外', 680, 530, 490, 28, 22, colors.ink, true);
+addText(slide, 'AIが禁忌相手を決めるものではない', 660, 600, 540, 30, 20, colors.gray, true, 'center');
+
+// 14. Appendix: image and video handling
+script = '画像と動画は任意の補助資料です。ブラウザで写真一枚と動画の二地点を静止画にし、最大三画像をWorker経由でAIへ送ります。元動画と音声はAIへ送りません。媒体本体は永続保存せず、Firestoreにはファイル名、形式、サイズ、処理状態のメタデータだけを保存します。';
+slide = makeSlide('画像・動画の扱い', 14, 0, script, `${source.repo}\n任意入力。JPG・PNG・WebPは各5MB以下、MP4・WebM・MOVは20MB以下、合計20MB以下。動画の25%地点と75%地点からブラウザで最大2静止画を抽出し、写真1枚と合わせ最大3画像を送信する。元動画と音声は送信しない。`);
+const mediaNodes = [
+  ['任意入力', '写真・動画'],
+  ['ブラウザ', '写真 最大1枚\n動画を静止画化\n最大2枚'],
+  ['Worker', '最大3画像を中継'],
+  ['OrcaRouter AI', '特徴を抽出'],
+  ['プロフィール', '構造化した特徴'],
+];
+const mediaXs = [52, 294, 536, 778, 1020];
+for (let i = 0; i < mediaNodes.length; i++) {
+  addRect(slide, mediaXs[i], 190, 188, 126, i === 3 ? '#F2E7DF' : colors.light, i === 3 ? colors.orange : colors.green, true);
+  addText(slide, mediaNodes[i][0], mediaXs[i] + 10, 202, 168, 32, 19, i === 3 ? colors.orange : colors.green, true, 'center');
+  addText(slide, mediaNodes[i][1], mediaXs[i] + 10, 234, 168, 78, 18, colors.ink, true, 'center');
+  if (i < mediaNodes.length - 1) addText(slide, '→', mediaXs[i] + 190, 226, 50, 52, 30, colors.green, true, 'center');
+}
+addText(slide, '送信境界', 64, 378, 180, 34, 22, colors.green, true);
+addRect(slide, 64, 420, 552, 125, '#F2E7DF', 'none', true);
+addText(slide, 'AIへ送らない', 84, 433, 180, 30, 20, colors.orange, true);
+addText(slide, '元動画 ／ 音声', 84, 475, 490, 42, 27, colors.ink, true);
+addRect(slide, 664, 420, 552, 125, colors.light, 'none', true);
+addText(slide, 'Firestoreに保存', 684, 433, 220, 30, 20, colors.green, true);
+addText(slide, 'ファイル名・形式・サイズ・処理状態', 684, 475, 490, 42, 23, colors.ink, true);
+addText(slide, '本システムでは媒体本体を永続保存しない', 64, 582, 1152, 38, 23, colors.orange, true, 'center');
+
+// 15. Appendix: validation status
+script = '実装済みの範囲と、導入時に確かめる範囲を分けています。招待、任意メディアの前処理、AI出力検査、相性計算、禁忌と定員の適用、提案の確定・却下履歴は実装済みです。実施設での効果は未実証で、提案修正率、観察後の再計算、継続利用、運用時間、スタッフの納得度を確認します。';
+slide = makeSlide('検証状況と導入時の確認項目', 15, 0, script, `${source.repo}\n公開デモでは確定・却下履歴を保存しない。過去の試験件数はこの版では再検証していないため掲載しない。実施設での効果や大規模性能は未実証。`);
+addTable(slide, [
+  ['区分', '現在の状態', '導入時に確認すること'],
+  ['実装済み', '招待ハッシュ照合\n任意メディアの前処理\nAI出力の必須項目・範囲検査', '登録からプロフィール確認まで\n施設の権限分離'],
+  ['実装済み', '6因子の相性計算\n登録禁忌と定員の適用\nグループ提案', '条件違反がないこと\nスタッフが理解できる根拠'],
+  ['実装済み', '確定・却下は理由必須\n操作履歴を保存', '判断履歴の追跡性\n公開デモは保存しない'],
+  ['未実証', '実施設での業務効果\n観察後の再計算・継続運用', '提案修正率／継続利用\n運用時間／スタッフ納得度'],
+], 64, 155, 1152, 410, [170, 475, 507], 19);
+addText(slide, '医療診断や性格の断定ではなく、スタッフの判断を支える', 64, 595, 1152, 42, 25, colors.orange, true, 'center');
+
 // Export draft, validate an immutable file, render all slides, and copy validated bytes to the requested filename.
 const candidatePath = path.join(tmp, 'candidate.pptx');
 await (await PresentationFile.exportPptx(presentation)).save(candidatePath);
@@ -278,10 +357,10 @@ for (let i = 0; i < presentation.slides.items.length; i++) {
   await fs.writeFile(path.join(tmp, `draft-${i + 1}.png`), new Uint8Array(await preview.arrayBuffer()));
 }
 
-const finalPath = path.join(out, 'PAWLAND_発表資料_利用フロー改訂版.pptx');
-const buildId = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
-const validatedPath = path.join(out, `PAWLAND_発表資料_利用フロー改訂版_検証_${buildId}.pptx`);
-const receiptPath = path.join(tmp, `PAWLAND_発表資料_利用フロー改訂版_検証_${buildId}.pptx.validation.json`);
+const finalPath = path.join(out, 'PAWLAND_発表資料_機能紹介改訂版.pptx');
+const buildId = new Date().toISOString().replace(/[-:.TZ]/g, '');
+const validatedPath = path.join(out, `PAWLAND_発表資料_機能紹介改訂版_検証_${buildId}.pptx`);
+const receiptPath = path.join(tmp, `PAWLAND_発表資料_機能紹介改訂版_検証_${buildId}.pptx.validation.json`);
 const result = await finalizePresentation({
   workspaceDir: path.resolve(root, '../..'),
   candidatePath,
@@ -289,9 +368,9 @@ const result = await finalizePresentation({
   pythonExecutable: python,
   integrityValidatorPath: path.join(skill, 'container_tools/inspect_presentation_package_integrity.py'),
   layoutValidatorPath: path.join(skill, 'container_tools/inspect_presentation_layout_geometry.py'),
-  layoutArgs: ['--expected-slide-size-emu', '12192000,6858000', '--validate-bullet-geometry', '--validate-heading-fit', '--require-native-table-slide', '9', '--require-native-table-slide', '10', '--require-native-table-slide', '12'],
-  explicitTotalSlideCount: 12,
-  requiredNativeTableOwnerSlides: [9, 10, 12],
+  layoutArgs: ['--expected-slide-size-emu', '12192000,6858000', '--validate-bullet-geometry', '--validate-heading-fit', '--require-native-table-slide', '9', '--require-native-table-slide', '10', '--require-native-table-slide', '12', '--require-native-table-slide', '13', '--require-native-table-slide', '15'],
+  explicitTotalSlideCount: 15,
+  requiredNativeTableOwnerSlides: [9, 10, 12, 13, 15],
   requiredNativeChartOwnerSlides: [],
   tableArithmeticContracts: [
     { slide: 9, table: 1, label_column: 0, total_row: 5, value_columns: Array.from({ length: 12 }, (_, index) => index + 1), component_rows: [3, 4] },
@@ -315,7 +394,7 @@ const mainNotes = notes.filter((item) => item.number <= 8).map((item) => {
   return `## ${item.number}. ${item.title || 'PAWLAND'}（${begin}〜${elapsed}秒）\n\n${item.script}`;
 }).join('\n\n');
 const appendixNotes = notes.filter((item) => item.number > 8).map((item) => `## ${item.number}. ${item.title}（補足）\n\n${item.script}`).join('\n\n');
-const notesText = `# PAWLAND 発表原稿・利用フロー改訂版\n\n本編8枚、発表目安3分40秒（220秒）。9〜12枚目は補足。\n\n${mainNotes}\n\n${appendixNotes}\n\n## 数値前提\n\n- 有料施設数：${active.join('、')}\n- 施設月：${facilityMonths}\n- 月額売上：${monthlyRevenueTotal}万円\n- 初期費用：${onboardingRevenueTotal}万円\n- 初年度売上：${revenueTotal}万円\n- 月次変動費：${variableCost.toFixed(3)}万円\n- 導入対応原価：${onboardingCost.toFixed(3)}万円\n- 固定費：${fixedCost.toFixed(3)}万円\n- 初年度営業利益：${profit.toFixed(3)}万円\n- 旧80施設ペース感度：売上465万円、営業利益−74.625万円\n\n初期費用を3万円から5,000円へ変更したため、販売計画を旧80施設から100施設へ改定。料金、販売数、費用は計画上の仮定。\n\n## 出典・注記\n\n${Object.values(source).join('\n\n')}\n\n公開デモ画面はサンプルデータを表示。スライド2はストーリー説明用の生成イラスト。\n`;
+const notesText = `# PAWLAND 発表原稿・機能紹介改訂版\n\n本編8枚、発表目安3分40秒（220秒）。9〜15枚目は補足。\n\n${mainNotes}\n\n${appendixNotes}\n\n## 数値前提\n\n- 有料施設数：${active.join('、')}\n- 施設月：${facilityMonths}\n- 月額売上：${monthlyRevenueTotal}万円\n- 初期費用：${onboardingRevenueTotal}万円\n- 初年度売上：${revenueTotal}万円\n- 月次変動費：${variableCost.toFixed(3)}万円\n- 導入対応原価：${onboardingCost.toFixed(3)}万円\n- 固定費：${fixedCost.toFixed(3)}万円\n- 初年度営業利益：${profit.toFixed(3)}万円\n- 旧80施設ペース感度：売上465万円、営業利益−74.625万円\n\n初期費用を3万円から5,000円へ変更したため、販売計画を旧80施設から100施設へ改定。料金、販売数、費用は計画上の仮定。\n\n## 出典・注記\n\n${Object.values(source).join('\n\n')}\n\n公開デモ画面はサンプルデータを表示。スライド1・2は説明用の生成イメージ。\n`;
 await fs.writeFile(path.join(root, 'docs/presentation/speaker-notes-final.md'), notesText);
-await fs.writeFile(path.join(out, 'PAWLAND_発表原稿_利用フロー改訂版.md'), notesText);
+await fs.writeFile(path.join(out, 'PAWLAND_発表原稿_機能紹介改訂版.md'), notesText);
 console.log(JSON.stringify({ slides: checked.slides.items.length, elapsed, facilityMonths, revenueTotal, profit, finalPath, validatedPath, receiptPath: result.receiptPath ?? receiptPath }, null, 2));
