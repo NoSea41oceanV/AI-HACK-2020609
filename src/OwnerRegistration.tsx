@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createIntakeRepository, createInviteRepository, type OwnerInvite, type OwnerIntake, type IntakeMediaMetadata } from './data'
-import { createAIWorkerClient } from './lib/workerClient'
+import { createAIWorkerClient, WorkerClientError } from './lib/workerClient'
 import type { IntakeAiAnalysis } from './domain/intakeProfile'
 import OwnerForm, { OwnerInviteError, type OwnerRegistrationPayload } from './pages/OwnerForm'
 import ProcessingStatus, { type ProcessingStep } from './components/ProcessingStatus'
@@ -24,6 +24,16 @@ function validate(payload: OwnerRegistrationPayload) {
   if([payload.media.photo,payload.media.video].some(file=>file && file.name.length>120)) throw new Error('ファイル名は120文字以内にしてください。')
 }
 type InviteState = { kind:'loading' } | { kind:'ready'; invite:OwnerInvite } | { kind:'invalid' } | { kind:'unavailable' }
+
+export function ownerAnalysisErrorMessage(error: unknown): string {
+  if (!(error instanceof WorkerClientError)) {
+    return '内容の確認処理を完了できませんでした。接続を確認し、もう一度お試しください。'
+  }
+  if (error.code === 'unknown_field') {
+    return 'AI確認機能の更新が必要です。施設へお問い合わせいただき、時間をおいてもう一度お試しください。'
+  }
+  return error.message
+}
 
 export default function OwnerRegistration({ token }: { token:string|null }) {
   const [attempt,setAttempt]=useState(0)
@@ -84,7 +94,7 @@ export default function OwnerRegistration({ token }: { token:string|null }) {
       setSteps(items=>items.map(item=>item.id===step?{...item,status:'error'}:item))
       if(step==='intake')throw new Error('登録を確認できませんでした。このURLが使用済みの可能性があります。施設へ登録状況を確認し、必要な場合は新しいURLをご依頼ください。')
       if(error instanceof Error && error.message==='invite-invalid')throw new Error('この登録URLは利用できません。施設へお問い合わせください。')
-      throw new Error('内容の確認処理を完了できませんでした。接続を確認し、もう一度お試しください。')
+      throw new Error(ownerAnalysisErrorMessage(error))
     }
   }
   if(!token)return <OwnerInviteError reason="missing" />
