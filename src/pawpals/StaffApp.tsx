@@ -60,7 +60,7 @@ export default function StaffApp(props: StaffAppProps) {
     <div className="app pawpals-app">
       <header className="site-header">
         <div className="brand-wrap">
-          <div className="brand">PawPals</div>
+          <div className="brand">PAWLAND</div>
           <div className="tagline">AIと一緒に、今日のわんこたちを見守る。</div>
         </div>
         <div className="pawpals-header-meta">

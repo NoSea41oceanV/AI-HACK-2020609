@@ -30,7 +30,7 @@ function text(s,t,x,y,w,h,size=30,color=colors.ink,bold=false){
 function slide(title,num,seconds,script,refs='',dark=false){
  const s=p.slides.add(); s.background.fill=dark?colors.ink:colors.bg;
  text(s,title,64,52,1152,100,44,dark?'#FFFFFF':colors.ink,true);
- text(s,`${num<=9?'PAWPAIR':'質疑応答用'}  /  ${String(num).padStart(2,'0')}`,64,678,650,24,16,dark?'#CDDFD3':colors.gray);
+ text(s,`${num<=9?'PAWLAND':'質疑応答用'}  /  ${String(num).padStart(2,'0')}`,64,678,650,24,16,dark?'#CDDFD3':colors.gray);
  s.speakerNotes.textFrame.setText(`${seconds?`目安 ${seconds}秒\n`:''}${script}\n\n根拠・注記\n${refs}`);
  notes.push({num,title,seconds,script,refs});return s;
 }
@@ -44,14 +44,14 @@ function table(s,values,x,y,w,h,widths,size=23){
  }return t;
 }
 
-let s=slide('PAWPAIR',1,20,'「この子たち、同じ部屋で大丈夫？」ペットホテルでは、性格も、その日の様子も違う犬たちの組み合わせを考えます。PAWPAIRは、その判断を支える相性評価・部屋割り支援です。スタッフが犬と向き合う時間を増やすことを目指します。',source.repo,true);
+let s=slide('PAWLAND',1,20,'「この子たち、同じ部屋で大丈夫？」ペットホテルでは、性格も、その日の様子も違う犬たちの組み合わせを考えます。PAWLANDは、その判断を支える相性評価・部屋割り支援です。スタッフが犬と向き合う時間を増やすことを目指します。',source.repo,true);
 text(s,'「この子たち、\n同じ部屋で大丈夫？」',64,205,1120,190,64,'#FFFFFF',true);
 text(s,'ペットホテルの相性評価・部屋割りを支えるAI',64,455,1130,65,34,'#CDDFD3');
 text(s,'AI HACK 2026  /  業務を自律化するAIエージェント',64,580,1130,40,22,'#CDDFD3');
 
 s=slide('受付情報から、部屋割りの提案まで',2,30,'飼い主が性格や遊び方を入力すると、OrcaRouter経由のAIが特徴を整理します。全てのペアを採点し、同室禁止と定員を守って部屋割りを提案。当日の観測を反映して再計算し、最後はスタッフが確定します。架空の二頭で、実際のAIと保存先を通した一連の動作を確認しています。',`${source.repo}\n画面: docs/qa/staff-dashboard.png。6頭のサンプル画面であり、公開E2Eの実証規模（2頭）とは異なる。`);
 text(s,'01  飼い主の情報を受付\n\n02  AIが犬の特徴を整理\n\n03  全ペア評価・部屋割り\n\n04  観測で再計算、人が確定',64,190,540,400,30,colors.ink,true);
-s.images.add({blob:new Uint8Array(await fs.readFile(path.join(root,'docs/qa/staff-dashboard.png'))),contentType:'image/png',alt:'PAWPAIRの6頭サンプル画面。全ペアと部屋割りの表示',fit:'contain',crop:{left:0,top:0,right:0,bottom:0.28},position:{left:620,top:165,width:596,height:430}});
+s.images.add({blob:new Uint8Array(await fs.readFile(path.join(root,'docs/qa/staff-dashboard.png'))),contentType:'image/png',alt:'PAWLANDの6頭サンプル画面。全ペアと部屋割りの表示',fit:'contain',crop:{left:0,top:0,right:0,bottom:0.28},position:{left:620,top:165,width:596,height:430}});
 text(s,'画面は6頭のサンプル。実サービスでの一連の動作確認は架空2頭・1ペア・1部屋。',64,619,1152,36,19,colors.gray);
 
 s=slide('任せるために、守る境界を決める',3,30,'セキュリティでは、氏名・連絡先の専用項目と音声をAIへ送りません。動画も最大二枚の静止画にし、原本は保存しません。信頼性では、AI出力の形式を検査し、同室禁止を数値評価とは別に適用します。失敗を成功に見せません。ただし現在はハッカソン用の公開構成です。販売前に認証と施設分離を必須にします。',`${source.criteria}\n${source.repo}\n自由記述や画像への個人情報混入を完全防止するという意味ではない。専用項目の送信除外。`);
@@ -103,7 +103,7 @@ const ch=s.charts.add('bar',{position:{left:605,top:196,width:611,height:346},ca
 applyPresentationChartFont(ch,{fontFamily:font});text(s,'有料稼働施設数（計画）',638,550,570,40,22,colors.gray);
 text(s,'仮定：M1〜2無償実証、月初契約・解約0。初年度営業損益は約 −123万円。',64,617,1152,39,21,colors.gray);
 
-s=slide('まず3施設で、「毎日使える」を証明する',9,20,'次の一歩は三施設での実証です。本番の認証と施設分離を整え、判断にかかる時間、提案の修正率、継続利用を測ります。その後、地域のホテルへの直接提案と紹介で広げます。将来は犬の保育園や多店舗運営へ。犬の安全を人が見守りながら、判断の準備をAIに任せる。それがPAWPAIRです。','将来計画。3施設の実証先は未合意。獲得仮説600施設接触→150デモ→75試用→50契約。認証・施設分離、課金、継続率計測、保育園/多店舗展開は未実装。',true);
+s=slide('まず3施設で、「毎日使える」を証明する',9,20,'次の一歩は三施設での実証です。本番の認証と施設分離を整え、判断にかかる時間、提案の修正率、継続利用を測ります。その後、地域のホテルへの直接提案と紹介で広げます。将来は犬の保育園や多店舗運営へ。犬の安全を人が見守りながら、判断の準備をAIに任せる。それがPAWLANDです。','将来計画。3施設の実証先は未合意。獲得仮説600施設接触→150デモ→75試用→50契約。認証・施設分離、課金、継続率計測、保育園/多店舗展開は未実装。',true);
 text(s,'0〜2か月',64,188,290,62,35,'#CDDFD3',true);
 text(s,'認証・施設分離を整備し、3施設で実証\n判断時間・提案修正率・AI原価を測定',390,188,826,116,32,'#FFFFFF');
 text(s,'3〜12か月',64,357,290,62,35,'#CDDFD3',true);
@@ -136,10 +136,10 @@ for(let i=0;i<p.slides.items.length;i++){
  const blob=await p.export({slide:p.slides.items[i],format:'png',scale:1.5});
  await fs.writeFile(path.join(tmp,`slide-${String(i+1).padStart(2,'0')}.png`),new Uint8Array(await blob.arrayBuffer()));
 }
-const finalName=process.env.PITCH_FILENAME??'PAWPAIR_発表資料.pptx';
+const finalName=process.env.PITCH_FILENAME??'PAWLAND_発表資料.pptx';
 const result=await finalizePresentation({workspaceDir:root,candidatePath:path.join(tmp,'candidate.pptx'),finalPath:path.join(out,finalName),pythonExecutable:python,integrityValidatorPath:path.join(skill,'container_tools/inspect_presentation_package_integrity.py'),layoutValidatorPath:path.join(skill,'container_tools/inspect_presentation_layout_geometry.py'),layoutArgs:['--expected-slide-size-emu','12192000,6858000','--validate-bullet-geometry','--validate-heading-fit',...[10,11,12,13].flatMap(n=>['--require-native-table-slide',String(n)])],explicitTotalSlideCount:13,requiredNativeTableOwnerSlides:[10,11,12,13],requiredNativeChartOwnerSlides:[8],materializeLiteralChartWorkbooks:true,fontPolicy:{basis:'design',families:[font]},verifyArtifactToolImport:true,receiptPath:path.join(tmp,finalName+'.validation.json')});
 console.log(JSON.stringify(result));
 let elapsed=0;
-const script='# PAWPAIR 発表原稿\n\n本編9枚、目安3分40秒（220秒）。補足4枚は質疑応答用。実演操作を含めない静止画ピッチ。\n\n読み上げ速度は個人差があるため、1回リハーサルして4分以内に調整する。数値は2026年9月22日時点で調査。価格・販売・効果・費用は提案仮説。\n\n'+notes.filter(n=>n.num<=9).map(n=>{let a=elapsed;elapsed+=n.seconds;return `## ${n.num}. ${n.title}（${a}〜${elapsed}秒）\n\n${n.script}\n`;}).join('\n')+'\n## 出典と実装の範囲\n\n'+Object.values(source).map(v=>'- '+v).join('\n')+'\n\n各スライドのノートに根拠と計算前提を記載。UI画面は6頭サンプル、実サービスE2E確認は架空2頭。認証・施設分離・課金・販売計画は今後。資料中の過去のテスト結果は既存記録の引用で、本作業での再実行ではない。\n';
+const script='# PAWLAND 発表原稿\n\n本編9枚、目安3分40秒（220秒）。補足4枚は質疑応答用。実演操作を含めない静止画ピッチ。\n\n読み上げ速度は個人差があるため、1回リハーサルして4分以内に調整する。数値は2026年9月22日時点で調査。価格・販売・効果・費用は提案仮説。\n\n'+notes.filter(n=>n.num<=9).map(n=>{let a=elapsed;elapsed+=n.seconds;return `## ${n.num}. ${n.title}（${a}〜${elapsed}秒）\n\n${n.script}\n`;}).join('\n')+'\n## 出典と実装の範囲\n\n'+Object.values(source).map(v=>'- '+v).join('\n')+'\n\n各スライドのノートに根拠と計算前提を記載。UI画面は6頭サンプル、実サービスE2E確認は架空2頭。認証・施設分離・課金・販売計画は今後。資料中の過去のテスト結果は既存記録の引用で、本作業での再実行ではない。\n';
 await fs.writeFile(path.join(root,'docs/presentation/speaker-notes.md'),script);
 await fs.writeFile(path.join(out,'発表原稿.md'),script);

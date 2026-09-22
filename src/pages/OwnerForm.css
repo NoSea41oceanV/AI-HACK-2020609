@@ -698,7 +698,7 @@
   }
 }
 
-/* PawPals owner registration layout. Kept owner-scoped so staff screens can share their own shell. */
+/* PAWLAND owner registration layout. Kept owner-scoped so staff screens can share their own shell. */
 .owner-form-page {
   --owner-ink: #38433b;
   --owner-muted: #7e857d;

@@ -1,4 +1,4 @@
-# PAWPAIR AI Worker
+# PAWLAND AI Worker
 
 Cloudflare Workers Free を想定した、OrcaRouter とブラウザの間の小さなプロキシです。API キーをブラウザへ配らず、ペットの性格・遊び方・注意事項と、任意の写真・動画からブラウザ内で抽出した静止画像だけを分析へ送ります。飼い主名・連絡先・音声・動画そのものは拒否します。
 

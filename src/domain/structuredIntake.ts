@@ -1,4 +1,4 @@
-/** Answers use the exact labels in the PawPals reference form; no implicit defaults. */
+/** Answers use the exact labels in the PAWLAND reference form; no implicit defaults. */
 export const STRUCTURED_INTAKE_OPTIONS = {
   neuter: ["済み", "未実施"],
   heat: ["いいえ", "はい"],

@@ -1,6 +1,8 @@
-# PAWPAIR
+# PAWLAND
 
 ペットホテル向けの相性評価・部屋割り支援デモです。サンプルなのは入力データだけです。フォーム保存、AI解析、全ペア採点、部屋割りは実サービスを使う本物の処理として構成します。
+
+![PAWLAND システム構成](docs/architecture-overview-pawland.png)
 
 ## 目標と現在の状態
 

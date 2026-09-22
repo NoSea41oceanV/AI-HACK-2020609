@@ -1,4 +1,4 @@
-# PAWPAIR ER図とデータ境界
+# PAWLAND ER図とデータ境界
 
 ## 目標データモデル
 
