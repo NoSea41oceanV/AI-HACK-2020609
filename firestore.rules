@@ -9,8 +9,68 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/facilities/$(facilityId)).data.active == true;
     }
 
+    function axisScore(value) {
+      return value is int && value >= 0 && value <= 100;
+    }
+    function validPersonalityAxes(axes) {
+      // Boolean lists keep compound validation below the Rules expression limit.
+      // Every entry must be true; guarded optional checks retain their own ORs.
+      return [
+        axes is map,
+        axes.size() == 7,
+        axisScore(axes.extraversion),
+        axisScore(axes.sociability),
+        axisScore(axes.neuroticism),
+        axisScore(axes.trainability),
+        axisScore(axes.resourceGuarding),
+        axisScore(axes.assertiveness),
+        axisScore(axes.resilience)
+      ].hasOnly([true]);
+    }
+    function boundedText(value, maximum) {
+      return value is string && value.size() <= maximum;
+    }
+    function validStructuredIntake(s) {
+      return [
+        s is map,
+        s.size() == 18,
+        s.neuter.matches('^(済み|未実施)$'),
+        s.heat.matches('^(いいえ|はい)$'),
+        s.mixedVaccine.matches('^(提出済み・有効|未提出|期限切れ)$'),
+        s.rabiesVaccine.matches('^(提出済み・有効|未提出|期限切れ)$'),
+        s.fleaTickPrevention.matches('^(実施済み|未実施)$'),
+        s.foodAllergy.matches('^(なし|あり)$'),
+        boundedText(s.medicalHistory, 1000),
+        boundedText(s.sensoryJointConcerns, 1000),
+        s.multiDogExperience.matches('^(なし|現在もあり|過去にあり)$'),
+        s.facilityExperience.matches('^(月に数回|週に数回|ほぼ利用なし)$'),
+        s.puppySocialization.matches('^(十分経験あり|少なめ|不明)$'),
+        boundedText(s.troubleHistory, 1000),
+        s.firstMeeting.matches('^(少し離れて様子を見る|様子を見てから近づく|すぐ近づいて遊びたがる|苦手そうにする|分からない)$'),
+        s.playPreference.matches('^(追いかけたり追いかけられたり|追いかけるのが好き|体を使って遊ぶのが好き|おもちゃで遊ぶのが好き|あまり遊ばず見ている|分からない)$'),
+        s.resourceReaction.matches('^(気にしない|少し気にすることがある|取られそうだと嫌がる|守ろうとすることがある|そういう場面がない|分からない)$'),
+        s.excitement.matches('^(ゆっくりテンションが上がる|少しずつ盛り上がる|すぐに走り回るほど元気になる|吠えることがある|分からない)$'),
+        s.recovery.matches('^(すぐ落ち着く|少し時間がかかる|かなり時間がかかる|状況による|分からない)$'),
+        s.stressResponse.matches('^(すぐ切り替えられる|少し離れると落ち着く|長く気にする|吠えたり逃げたりする|分からない)$')
+      ].hasOnly([true]);
+    }
+    function validIntakeConsent(c) {
+      return [
+        c is map,
+        c.size() == 3,
+        c.version == '2026-09',
+        c.accepted == true,
+        c.acceptedAt is string,
+        c.acceptedAt.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$')
+      ].hasOnly([true]);
+    }
+    function intakeInviteIsValid(inviteId, facilityId) {
+      let marker = get(/databases/$(database)/documents/registrationInvites/$(inviteId)).data;
+      return marker.active == true && marker.facilityId == facilityId;
+    }
     function validPet(data) {
-      return data.keys().hasOnly(['name', 'breed', 'ageYears', 'weightKg', 'energyLevel', 'sociability', 'anxietyLevel', 'assertiveness', 'resourceGuarding', 'playStyles', 'hardBlockedPetIds', 'notes', 'photoUrl', 'updatedAt'])
+      return data.keys().hasOnly(['name', 'breed', 'ageYears', 'weightKg', 'energyLevel', 'sociability', 'anxietyLevel', 'assertiveness', 'resourceGuarding', 'playStyles', 'hardBlockedPetIds', 'notes', 'photoUrl', 'updatedAt', 'personalityAxes'])
+        && (!('personalityAxes' in data) || validPersonalityAxes(data.personalityAxes))
         && data.name is string && data.name.size() > 0 && data.name.size() <= 40
         && data.ageYears is number && data.ageYears >= 0 && data.ageYears <= 40
         && data.weightKg is number && data.weightKg > 0 && data.weightKg <= 150
@@ -29,12 +89,20 @@ service cloud.firestore {
     }
 
     function validIntakeMedia(item, expectedKind, maxBytes) {
-      return item.keys().hasOnly(['kind', 'fileName', 'contentType', 'sizeBytes', 'status'])
-        && item.kind == expectedKind && item.fileName is string && item.fileName.size() > 0 && item.fileName.size() <= 120
-        && item.contentType is string && item.contentType.size() <= 80
-        && item.contentType.matches(expectedKind == 'image' ? '^image/[a-zA-Z0-9.+-]+$' : '^video/[a-zA-Z0-9.+-]+$')
-        && item.sizeBytes is int && item.sizeBytes >= 0 && item.sizeBytes <= maxBytes
-        && item.status in ['selected', 'uploaded', 'failed'];
+      return [
+        item.keys().hasOnly(['kind', 'fileName', 'contentType', 'sizeBytes', 'status']),
+        item.kind == expectedKind,
+        item.fileName is string,
+        item.fileName.size() > 0,
+        item.fileName.size() <= 120,
+        item.contentType is string,
+        item.contentType.size() <= 80,
+        item.contentType.matches(expectedKind == 'image' ? '^image/[a-zA-Z0-9.+-]+$' : '^video/[a-zA-Z0-9.+-]+$'),
+        item.sizeBytes is int,
+        item.sizeBytes >= 0,
+        item.sizeBytes <= maxBytes,
+        item.status in ['selected', 'uploaded', 'failed']
+      ].hasOnly([true]);
     }
     function validIntakeMediaMap(media) {
       return media.keys().hasOnly(['photo', 'video'])
@@ -42,48 +110,108 @@ service cloud.firestore {
         && (!('video' in media) || validIntakeMedia(media.video, 'video', 20 * 1024 * 1024));
     }
     function validMatchingProfile(profile) {
-      return profile.keys().hasOnly(['energyLevel', 'sociability', 'anxietyLevel', 'assertiveness', 'resourceGuarding', 'playStyles', 'hardBlockedPetIds'])
-        && profile.energyLevel is int && profile.energyLevel >= 1 && profile.energyLevel <= 5
-        && profile.sociability is int && profile.sociability >= 1 && profile.sociability <= 5
-        && profile.anxietyLevel is int && profile.anxietyLevel >= 1 && profile.anxietyLevel <= 5
-        && profile.assertiveness is int && profile.assertiveness >= 1 && profile.assertiveness <= 5
-        && profile.resourceGuarding is int && profile.resourceGuarding >= 0 && profile.resourceGuarding <= 5
-        && profile.playStyles is list && profile.playStyles.size() <= 6
-        && profile.playStyles.hasOnly(['chase', 'wrestle', 'tug', 'fetch', 'gentle', 'solo'])
-        && profile.hardBlockedPetIds is list && profile.hardBlockedPetIds.size() <= 50;
+      return [
+        profile.keys().hasOnly(['energyLevel', 'sociability', 'anxietyLevel', 'assertiveness', 'resourceGuarding', 'playStyles', 'hardBlockedPetIds', 'personalityAxes']),
+        (!('personalityAxes' in profile) || validPersonalityAxes(profile.personalityAxes)),
+        profile.energyLevel is int,
+        profile.energyLevel >= 1,
+        profile.energyLevel <= 5,
+        profile.sociability is int,
+        profile.sociability >= 1,
+        profile.sociability <= 5,
+        profile.anxietyLevel is int,
+        profile.anxietyLevel >= 1,
+        profile.anxietyLevel <= 5,
+        profile.assertiveness is int,
+        profile.assertiveness >= 1,
+        profile.assertiveness <= 5,
+        profile.resourceGuarding is int,
+        profile.resourceGuarding >= 0,
+        profile.resourceGuarding <= 5,
+        profile.playStyles is list,
+        profile.playStyles.size() <= 6,
+        profile.playStyles.hasOnly(['chase', 'wrestle', 'tug', 'fetch', 'gentle', 'solo']),
+        profile.hardBlockedPetIds is list,
+        profile.hardBlockedPetIds.size() <= 50
+      ].hasOnly([true]);
     }
     function validAiAnalysis(ai) {
-      return ai.keys().hasOnly(['summary', 'observations', 'personalityTraits', 'compatibilitySignals', 'riskFlags', 'confidence', 'matchingProfile'])
-        && ai.summary is string && ai.summary.size() <= 2000
-        && ai.observations is list && ai.observations.size() <= 50
-        && ai.personalityTraits is list && ai.personalityTraits.size() <= 30
-        && ai.compatibilitySignals is list && ai.compatibilitySignals.size() <= 50
-        && ai.riskFlags is list && ai.riskFlags.size() <= 50
-        && ai.confidence is number && ai.confidence >= 0 && ai.confidence <= 1
-        && ai.matchingProfile is map && validMatchingProfile(ai.matchingProfile);
+      return [
+        ai.keys().hasOnly(['summary', 'observations', 'personalityTraits', 'compatibilitySignals', 'riskFlags', 'confidence', 'matchingProfile', 'personalityAxes']),
+        (!('personalityAxes' in ai) || ai.personalityAxes == ai.matchingProfile.personalityAxes),
+        ai.summary is string,
+        ai.summary.size() <= 2000,
+        ai.observations is list,
+        ai.observations.size() <= 50,
+        ai.personalityTraits is list,
+        ai.personalityTraits.size() <= 30,
+        ai.compatibilitySignals is list,
+        ai.compatibilitySignals.size() <= 50,
+        ai.riskFlags is list,
+        ai.riskFlags.size() <= 50,
+        ai.confidence is number,
+        ai.confidence >= 0,
+        ai.confidence <= 1,
+        ai.matchingProfile is map,
+        validMatchingProfile(ai.matchingProfile)
+      ].hasOnly([true]);
     }
     function validIntake(data, intakeId, facilityId) {
-      return data.keys().hasOnly(['id', 'inviteId', 'facilityId', 'owner', 'pet', 'media', 'aiAnalysis', 'matchingProfile', 'status', 'submittedAt'])
-        && data.id == intakeId && data.id == data.inviteId
-        && data.inviteId is string && data.inviteId.matches('^[a-f0-9]{64}$')
-        && data.facilityId == facilityId
-        && data.owner is map && data.owner.keys().hasOnly(['name', 'contact'])
-        && data.owner.name is string && data.owner.name.size() > 0 && data.owner.name.size() <= 80
-        && data.owner.contact is string && data.owner.contact.size() > 0 && data.owner.contact.size() <= 200
-        && data.pet is map && data.pet.keys().hasOnly(['name', 'breed', 'ageYears', 'weightKg', 'sex', 'personality', 'playStyle', 'concerns'])
-        && data.pet.name is string && data.pet.name.size() > 0 && data.pet.name.size() <= 40
-        && data.pet.breed is string && data.pet.breed.size() > 0 && data.pet.breed.size() <= 80
-        && data.pet.ageYears is number && data.pet.ageYears >= 0 && data.pet.ageYears <= 30
-        && data.pet.weightKg is number && data.pet.weightKg >= 0.1 && data.pet.weightKg <= 100
-        && data.pet.sex in ['male', 'female', 'unknown']
-        && data.pet.personality is string && data.pet.personality.size() > 0 && data.pet.personality.size() <= 1000
-        && data.pet.playStyle is string && data.pet.playStyle.size() > 0 && data.pet.playStyle.size() <= 1000
-        && data.pet.concerns is string && data.pet.concerns.size() <= 1000
-        && data.media is map && validIntakeMediaMap(data.media)
-        && (!('aiAnalysis' in data) || (data.aiAnalysis is map && validAiAnalysis(data.aiAnalysis)))
-        && (!('matchingProfile' in data) || (data.matchingProfile is map && validMatchingProfile(data.matchingProfile)))
-        && data.status in ['submitted', 'ready']
-        && data.submittedAt is string && data.submittedAt.size() >= 20 && data.submittedAt.size() <= 40;
+      let p = data.pet;
+      let o = data.owner;
+      let structured = 'structured' in p;
+      return [
+        data.keys().hasOnly(['id', 'inviteId', 'facilityId', 'owner', 'pet', 'media', 'aiAnalysis', 'matchingProfile', 'status', 'submittedAt', 'consent']),
+        (!(structured || 'consent' in data) || validIntakeConsent(data.consent)),
+        (!structured || validStructuredIntake(p.structured)),
+        (!structured || !('aiAnalysis' in data) || 'personalityAxes' in data.aiAnalysis),
+        (!structured || !('matchingProfile' in data) || 'personalityAxes' in data.matchingProfile),
+        data.id == intakeId,
+        data.id == data.inviteId,
+        data.inviteId is string,
+        data.inviteId.matches('^[a-f0-9]{64}$'),
+        data.facilityId == facilityId,
+        o is map,
+        o.size() == 2,
+        o.name is string,
+        o.name.size() > 0,
+        o.name.size() <= 80,
+        o.contact is string,
+        o.contact.size() > 0,
+        o.contact.size() <= 200,
+        p is map,
+        p.keys().hasOnly(['name', 'breed', 'ageYears', 'weightKg', 'sex', 'personality', 'playStyle', 'concerns', 'structured']),
+        p.name is string,
+        p.name.size() > 0,
+        p.name.size() <= 40,
+        p.breed is string,
+        p.breed.size() > 0,
+        p.breed.size() <= 80,
+        p.ageYears is number,
+        p.ageYears >= 0,
+        p.ageYears <= 30,
+        p.weightKg is number,
+        p.weightKg >= 0.1,
+        p.weightKg <= 100,
+        p.sex in ['male', 'female', 'unknown'],
+        p.personality is string,
+        (structured || p.personality.size() > 0),
+        p.personality.size() <= 1000,
+        p.playStyle is string,
+        (structured || p.playStyle.size() > 0),
+        p.playStyle.size() <= 1000,
+        p.concerns is string,
+        p.concerns.size() <= 1000,
+        data.media is map,
+        validIntakeMediaMap(data.media),
+        (!('aiAnalysis' in data) || (data.aiAnalysis is map && validAiAnalysis(data.aiAnalysis))),
+        (!('matchingProfile' in data) || (('aiAnalysis' in data && data.matchingProfile == data.aiAnalysis.matchingProfile)
+          || (!('aiAnalysis' in data) && data.matchingProfile is map && validMatchingProfile(data.matchingProfile)))),
+        data.status in ['submitted', 'ready'],
+        data.submittedAt is string,
+        data.submittedAt.size() >= 20,
+        data.submittedAt.size() <= 40
+      ].hasOnly([true]);
     }
 
     function validMatchingSnapshot(data, snapshotId) {
@@ -156,9 +284,7 @@ service cloud.firestore {
       }
       match /demoIntakes/{intakeId} {
         allow create: if validIntake(request.resource.data, intakeId, facilityId)
-          && exists(/databases/$(database)/documents/registrationInvites/$(request.resource.data.inviteId))
-          && get(/databases/$(database)/documents/registrationInvites/$(request.resource.data.inviteId)).data.active == true
-          && get(/databases/$(database)/documents/registrationInvites/$(request.resource.data.inviteId)).data.facilityId == facilityId;
+          && intakeInviteIsValid(intakeId, facilityId);
         allow get: if isActiveFacility(facilityId);
         allow list: if isActiveFacility(facilityId) && request.query.limit != null && request.query.limit <= 25;
         allow update, delete: if false;

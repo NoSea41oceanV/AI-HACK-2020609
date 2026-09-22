@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { STRUCTURED_INTAKE_OPTIONS, type StructuredIntakeAnswers } from "../domain/structuredIntake";
 import {
   AI_MEDIA_LIMITS,
   AIWorkerClient,
@@ -25,6 +26,24 @@ const validAnalysis = {
 };
 
 describe("AIWorkerClient", () => {
+  it("sends exact structured answers without identifiers and requires generated axes", async () => {
+    const structured = { ...Object.fromEntries(Object.entries(STRUCTURED_INTAKE_OPTIONS).map(([key, options]) => [key, options[0]])), medicalHistory: "なし", sensoryJointConcerns: "なし", troubleHistory: "なし" } as StructuredIntakeAnswers;
+    const axes = { extraversion: 12, sociability: 34, neuroticism: 56, trainability: 78, resourceGuarding: 90, assertiveness: 23, resilience: 45 };
+    const fetchMock = vi.fn().mockImplementation(async () => Response.json({ ok: true, requestId: "structured", model: "model", analysis: { ...validAnalysis, personalityAxes: axes, matchingProfile: { ...validAnalysis.matchingProfile, personalityAxes: axes } } }));
+    const client = new AIWorkerClient("https://worker.example", { fetchImpl: fetchMock });
+    const input = { personality: "", playStyle: "", concerns: "", structured, owner: { name: "private owner" }, breed: "private breed", petId: "private id" };
+    const result = await client.analyzeOwnerRegistration(input);
+    expect(result.analysis.personalityAxes).toEqual(axes);
+    const body = JSON.parse(String(fetchMock.mock.calls[0][1].body));
+    expect(body.profile.structured).toEqual(structured);
+    expect(JSON.stringify(body)).not.toContain("private");
+    expect(() => parseWorkerAnalysis(validAnalysis, true)).toThrow();
+    expect(() => parseWorkerAnalysis({ ...validAnalysis, personalityAxes: axes, matchingProfile: { ...validAnalysis.matchingProfile, personalityAxes: { ...axes, resilience: 101 } } }, true)).toThrow();
+    expect(() => parseWorkerAnalysis({ ...validAnalysis, personalityAxes: axes, matchingProfile: { ...validAnalysis.matchingProfile, personalityAxes: { ...axes, resilience: 46 } } }, true)).toThrow();
+    expect(parseWorkerAnalysis(validAnalysis)).not.toHaveProperty("personalityAxes");
+    await expect(client.analyzeOwnerRegistration({ ...input, structured: { ...structured, contact: "private" } as StructuredIntakeAnswers })).rejects.toMatchObject({ code: "invalid_structured_intake" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
   it("exposes a disabled state when the worker URL is missing", async () => {
     const client = new AIWorkerClient(undefined, { fetchImpl: vi.fn() });
     expect(client.state.kind).toBe("disabled");
