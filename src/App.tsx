@@ -7,7 +7,7 @@ import StaffSelection from './components/StaffSelection'
 import StaffApp from './pawpals/StaffApp'
 import OwnerRegistration from './OwnerRegistration'
 import { OwnerInviteError } from './pages/OwnerForm'
-import { createIntakeRepository, createOperationRepository, createPetRepository, createInviteRepository, createStaffProfileRepository, createDailyOperationRepository, createManualObservationRepository, operationDateForObservation, type MatchingSnapshot, type ObservationRecord, type PetPage, type StaffProfile } from './data'
+import { createIntakeRepository, createOperationRepository, createPetRepository, createInviteRepository, createStaffProfileRepository, createDailyOperationRepository, createManualObservationRepository, ensureDemoPets, operationDateForObservation, type MatchingSnapshot, type ObservationRecord, type PetPage, type StaffProfile } from './data'
 import { intakeToPetProfile } from './domain/intakeProfile'
 import { assertOperationDate, isCurrentPlan, isCurrentProposed, type DailyOperationDay, type DailyOperationPlan, type FacilityRoomSettings, type OperationAuditEvent } from './domain/dailyOperations'
 import type { PetProfile as DomainPetProfile, RoomDefinition } from './domain/types'
@@ -115,6 +115,8 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: { staff: StaffProfi
     const pending = (async () => {
       assertFacility()
       const services = requireServices()
+      await ensureDemoPets(services.pets)
+      assertFacility()
       const intakes = await services.intake.listRecent(25)
       assertFacility()
       await Promise.all(intakes.filter(intake => intake.status === 'ready' && intake.matchingProfile).map(intake =>

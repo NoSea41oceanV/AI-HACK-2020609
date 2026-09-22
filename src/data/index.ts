@@ -11,6 +11,7 @@ import { LocalPetRepository } from "./localPetRepository";
 import type { IntakeRepository } from "./intakeRepository";
 
 export * from "./demoData";
+export * from "./demoPetBootstrap";
 export * from "./firestoreIntakeRepository";
 export * from "./firestoreInviteRepository";
 export * from "./dailyOperationRepository";
