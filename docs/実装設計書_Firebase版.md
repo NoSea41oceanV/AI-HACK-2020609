@@ -56,7 +56,7 @@ Firestoreは `pawpair-ai-hack-2026` / `asia-northeast1`。Firebase Cloud Functio
 
 実装証拠: `origin/feat/pawpals-data-contracts` の `3048cc6`（受付/7軸）、`48e0e02`（当日運用/監査）、`d6431c9`（手動観測/ingestion）。担当報告ではアプリ89件、Worker 18件、typecheck/build、Rules実emulatorが成功。Firestore indexesを追加済み。文書担当はリモート変更範囲を照合したが、テスト自体は再実行していない。公開配備は未実施。
 
-統合branchではbackendが `d12a381` / `3350193` / `373f39e` として取り込まれ、UI `87ad6c0` も共有済み。統合途中の担当報告ではアプリ18ファイル114件とWorker 18件が成功した。Appの旧props接続1件が残ってtypecheckは未完であり、App統合、build、統合E2E、公開配備の完了証拠はまだない。
+統合branchではbackendが `d12a381` / `3350193` / `373f39e` として取り込まれ、UI `87ad6c0`、App統合 `d6dd66c` が共有された。担当報告ではtypecheck、アプリ18ファイル114件、Worker 18件、build、Rules実emulator、招待から理由付き承認/監査までのブラウザE2E、desktop/mobile表示、console error/warn 0を確認した。AI生成7軸を相性100点へ使う計算は別成果待ちで、公開配備も未実施。
 
 ## 5. AI・媒体・エラー
 
@@ -68,7 +68,11 @@ AI失敗、不正応答、認証/保存/読み戻し失敗、無料枠上限は�
 
 ## 6. 計算・表示・監査
 
-相性スコアは0〜100の既存数値を%表示する。全ペア完了後、定員・最低頭数・全頭配置・hard blockを満たす解を選ぶ。基点の選択基準は同室ペアの `score - 50` 合計、合計スコア、ID順。今回の入力拡張は配点変更を自動的に意味しない。
+相性スコアは0〜100を%表示する。全ペア完了後、定員・最低頭数・全頭配置・hard blockを満たす解を選ぶ。基点の選択基準は同室ペアの `score - 50` 合計、合計スコア、ID順。
+
+相性計算はversionを持つ2経路にする。両方のプロフィールに完全な `PersonalityAxes` があるときは、既存5指標・体格・遊び方と7軸全項目を決定的な重み付き計算へ入力し、合計を0〜100に正規化する。片方でも7軸がない場合は基点の既存100点計算をそのまま使用する。欠損軸の補完、AIによる最終score生成、hard blockの点数化は行わない。
+
+`PairCompatibility` / 保存snapshotには少なくとも `scoreVersion` と7軸寄与を再現できるbreakdownを持たせる。新経路の配点表は実装と同じ場所で定数化し、各重みの合計、0点/100点境界、全7軸の感度、対称性、決定性、旧経路の回帰をテストする。最適化とUIは保存されたscore/versionを使い、別計算を持たない。
 
 監査は選択スタッフ、操作日時、操作種別、対象案、理由、元案参照を保存する。最新proposedのみ承認対象・待ち件数とし、旧proposedはsupersededへ遷移する。手動部屋編集と未確定の5分類は追加しない。
 

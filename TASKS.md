@@ -7,13 +7,13 @@
 
 | ID | 範囲・受入条件 | 担当 | 状態 | 依存・次の一手 |
 |---|---|---|---|---|
-| P01 | モック構造化質問・7軸を保存/AI/Rules/validation/同意へ一貫して接続。自由記述互換 | backend・UI・[09] | backend/UI検証済み・App統合中 | 統合 `d12a381`、UI `87ad6c0`。実サービスE2E待ち |
-| P02 | 日付付き当日対象をスタッフが明示選択・保存し、選択犬だけ計算 | backend・UI・[09] | backend/UI検証済み・App統合中 | 統合 `3350193`、UI `87ad6c0` |
-| P03 | 施設別部屋設定の永続化・読み戻し・計算への使用 | backend・UI・[09] | backend/UI検証済み・App統合中 | 統合 `3350193`、UI `87ad6c0` |
-| P04 | 最新案のみ承認。選択スタッフ、4状態遷移、旧案superseded、理由と元案参照 | backend・UI・[09] | backend/UI検証済み・App統合中 | 統合 `3350193`、UI `87ad6c0`。同時操作E2E待ち |
-| P05 | score%・hard制約、実際のAI根拠だけ表示。未確定5分類追加禁止 | UI・[09] | UI検証済み・App統合中 | UI `87ad6c0`。統合画面証拠待ち |
-| P06 | 承認/却下/再計算の監査と最新未確定案だけの待ち件数 | backend・UI・[09] | backend/UI検証済み・App統合中 | 統合 `3350193`、UI `87ad6c0`。再読込E2E待ち |
-| P07 | 手動観測の実動線、将来operation event/observation ingestion型・adapter・テスト | backend・UI・[09] | backend/UI検証済み・App統合中 | 統合 `373f39e`、UI `87ad6c0`。cameraはunsupported |
+| P01 | モック構造化質問・7軸を保存/AI/Rules/validation/同意へ一貫して接続。自由記述互換 | backend・UI・[09] | 検証済み（保存・表示） | `d12a381` / `87ad6c0` / `d6dd66c`。7軸の相性点利用はP05 |
+| P02 | 日付付き当日対象をスタッフが明示選択・保存し、選択犬だけ計算 | backend・UI・[09] | 検証済み | `3350193` / `87ad6c0` / `d6dd66c`。Rules/E2E成功 |
+| P03 | 施設別部屋設定の永続化・読み戻し・計算への使用 | backend・UI・[09] | 検証済み | `3350193` / `87ad6c0` / `d6dd66c`。Rules/E2E成功 |
+| P04 | 最新案のみ承認。選択スタッフ、4状態遷移、旧案superseded、理由と元案参照 | backend・UI・[09] | 検証済み | `3350193` / `87ad6c0` / `d6dd66c`。理由付き承認・監査E2E成功 |
+| P05 | 既存信号とAI生成7軸を相性100点へ統合。score/version/内訳、hard制約、実際のAI根拠を表示。未確定5分類追加禁止 | matching・UI・[09] | 追加要件・実装検証待ち | 両犬7軸ありは全7軸を使用、欠損時は既存計算。hard block維持 |
+| P06 | 承認/却下/再計算の監査と最新未確定案だけの待ち件数 | backend・UI・[09] | 検証済み | `3350193` / `87ad6c0` / `d6dd66c`。監査E2E成功 |
+| P07 | 手動観測の実動線、将来operation event/observation ingestion型・adapter・テスト | backend・UI・[09] | 検証済み（カメラIF範囲） | `373f39e` / `87ad6c0` / `d6dd66c`。cameraはunsupported |
 | P08 / [06] | 設計書・ER・アーキテクチャ・台帳・証拠表を同期 | 文書担当[06] | 検証済み（文書の範囲のみ） | 文書専用commitをpushし[09]/[EX]へ共有。実装証拠は後続 |
 | P09 | 実装統合・全体受入・最終レビュー | [09]・全体レビュー担当 | 進行中 | P01〜P07を統合後、`gpt-5.6-sol / high` でレビュー |
 | P10 | 今回変更の公開配備・実環境疎通 | 配備担当 | 未着手（証拠未受領） | 全体受入後、別途依頼範囲で実施 |
@@ -32,8 +32,9 @@
 1. backendの型/Rules/データ契約を別commitで共有する。
 2. UI担当がその契約を用いたフォーム・スタッフ画面を別commitで共有する。
 3. [09]だけが `src/App.tsx` を統合し、実保存・読み戻し・再計算・承認・監査を接続する。
-4. 文書commitは独立して取り込み可能。記載基点と未検証状態を保持し、実装取り込み後に証拠表を更新する。
-5. 統合後に要件表に沿う受入検証と `gpt-5.6-sol / high` の全体レビューを行う。
+4. matching担当が7軸を含む100点計算、version、内訳、旧データ経路を実装し、[09]が同じ結果を保存・最適化・表示へ接続する。
+5. 文書commitは独立して取り込み可能。記載基点と未検証状態を保持し、実装取り込み後に証拠表を更新する。
+6. 統合後に要件表に沿う受入検証と `gpt-5.6-sol / high` の全体レビューを行う。
 
 担当タスク:
 - backend: `01a0c655-2bf7-78b3-93c3-96189d2077e7`
@@ -49,7 +50,8 @@
 | 旧公開デモ | 2026-09-22、架空2頭登録→Worker/OrcaRouter→Firestore→全1ペア→1部屋→観測再計算→確定。アプリ34/34、Worker15/15、typecheck/build/qa-preflight成功との旧台帳記録 | 旧認証なし構成の履歴。今回仕様の証拠にはしない |
 | モック統合基点 | アプリ46件、Worker15件、typecheck/build、Rules emulator、ローカルブラウザE2Eを記録 | [詳細・制限](docs/integration/pawpals-mapping.md)。公開配備なし |
 | 基点ブラウザ登録 | Auth/Firestore emulator + AI test double。別途テキスト1件の公開Worker/実OrcaRouter疎通 | 新7軸・今回監査・今回当日対象を検証していない。実媒体操作と実機QR未確認 |
-| backend/UI統合途中 | backend統合 `d12a381` / `3350193` / `373f39e`、UI `87ad6c0`。アプリ18ファイル114件、Worker18件成功 | Appの旧props接続1件が残りtypecheck未完。build/公開E2E/配備の完了証拠にしない |
+| App統合前の中間記録 | backend統合 `d12a381` / `3350193` / `373f39e`、UI `87ad6c0`。アプリ18ファイル114件、Worker18件成功 | 後続I03でtypecheck/build/E2E完了。公開配備の証拠にはしない |
+| App統合 | `d6dd66c`。typecheck、18ファイル114件、build、Rules実emulator、招待から承認監査までのブラウザE2E、desktop/mobile、console error/warn 0 | AI生成7軸を相性100点へ使う追加要件は別担当の成果待ち。公開配備は別 |
 
 旧公開Hosting: `https://pawpair-ai-hack-2026.web.app`。旧Worker: `https://pet-hotel-agent-api.nosea41oceanv.workers.dev`。URLの存在を最新仕様の配備証拠にしない。無料枠のみ、秘密情報を露出させない。
 
