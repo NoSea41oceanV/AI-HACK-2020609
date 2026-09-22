@@ -7,8 +7,9 @@ import StaffSelection from './components/StaffSelection'
 import StaffInvitePanel from './components/StaffInvitePanel'
 import OwnerRegistration from './OwnerRegistration'
 import { OwnerInviteError } from './pages/OwnerForm'
-import { createIntakeRepository, createOperationRepository, createPetRepository, createInviteRepository, createStaffProfileRepository, type IntakeRepository, type PetRepository, type OperationRepository, type MatchingSnapshot, type ObservationRecord, type StaffProfile } from './data'
+import { createIntakeRepository, createOperationRepository, createPetRepository, createInviteRepository, createStaffProfileRepository, type IntakeRepository, type PetRepository, type OperationRepository, type MatchingSnapshot, type ObservationRecord, type OwnerIntake, type StaffProfile } from './data'
 import { intakeToPetProfile } from './domain/intakeProfile'
+import { validateManualAssignments } from './domain/manualAssignment'
 import { createOptimalRoomPlan } from './domain/matching'
 import type { MatchingResult, PairCompatibility, PetProfile as DomainPetProfile, RoomDefinition } from './domain/types'
 import { getFirebaseAuth } from './lib/firebase'
@@ -54,17 +55,28 @@ function pairReason(pair: PairCompatibility, petNameIndex: ReadonlyMap<string, s
   return `${names}は${strengths}の一致度が高い組み合わせです。初回接触では${watch}をスタッフが観察してください。`
 }
 
-function toDashboardPairs(result: MatchingResult, pets: readonly DomainPetProfile[]): CompatibilityPair[] {
+function toDashboardPairs(result: MatchingResult, pets: readonly DomainPetProfile[], intakes: readonly OwnerIntake[]): CompatibilityPair[] {
   const petNameIndex = new Map(pets.map((pet) => [pet.id, pet.name]))
-  return result.pairResults.map((pair) => ({
-    id: pair.pairKey,
-    petAId: pair.petAId,
-    petBId: pair.petBId,
-    totalScore: pair.score,
-    factors: FACTOR_META.map(([key, label, maxScore]) => ({ label, score: pair.breakdown[key], maxScore })),
-    explanation: pairReason(pair, petNameIndex),
-    hardConstraints: pair.hardConstraints.map((constraint) => constraint.message),
-  }))
+  const intakeById = new Map(intakes.map((intake) => [intake.id, intake]))
+  return result.pairResults.map((pair) => {
+    const analyses = [pair.petAId, pair.petBId]
+      .map((petId) => ({ petId, analysis: intakeById.get(petId)?.aiAnalysis }))
+      .filter((item): item is { petId: string; analysis: NonNullable<OwnerIntake['aiAnalysis']> } => Boolean(item.analysis))
+    return {
+      id: pair.pairKey,
+      petAId: pair.petAId,
+      petBId: pair.petBId,
+      totalScore: pair.score,
+      factors: FACTOR_META.map(([key, label, maxScore]) => ({ label, score: pair.breakdown[key], maxScore })),
+      explanation: pairReason(pair, petNameIndex),
+      hardConstraints: pair.hardConstraints.map((constraint) => constraint.message),
+      aiExplanation: analyses.length
+        ? analyses.map(({ petId, analysis }) => `${petNameIndex.get(petId) ?? petId}: ${analysis.summary}`).join(' ')
+        : undefined,
+      aiCautions: [...new Set(analyses.flatMap(({ analysis }) => analysis.riskFlags))],
+      aiRecommendations: [...new Set(analyses.flatMap(({ analysis }) => analysis.compatibilitySignals))],
+    }
+  })
 }
 
 function toDashboardRooms(result: MatchingResult, rooms: readonly RoomDefinition[]): DashboardRoomAssignment[] {
@@ -76,6 +88,7 @@ function toDashboardRooms(result: MatchingResult, rooms: readonly RoomDefinition
       id: assignment.roomId,
       name: room?.name ?? assignment.roomId,
       capacity: room?.capacity ?? assignment.petIds.length,
+      minOccupancy: room?.minOccupancy,
       petIds: assignment.petIds,
       averageScore: assignment.averageCompatibility ?? 100,
       note: assignment.minimumCompatibility === null
@@ -85,7 +98,64 @@ function toDashboardRooms(result: MatchingResult, rooms: readonly RoomDefinition
   })
 }
 
-function createMatchingSnapshot(result: MatchingResult, pets: readonly DomainPetProfile[], status: MatchingSnapshot['status']): MatchingSnapshot {
+function createMatchingSnapshot(
+  result: MatchingResult,
+  pets: readonly DomainPetProfile[],
+  status: MatchingSnapshot['status'],
+  roomDefinitions?: readonly RoomDefinition[],
+  manualRooms?: readonly DashboardRoomAssignment[],
+): MatchingSnapshot {
+  let snapshotRooms = result.status === 'success' ? result.rooms.map((room) => ({
+    roomId: room.roomId,
+    petIds: room.petIds,
+    averageCompatibility: room.averageCompatibility,
+    minimumCompatibility: room.minimumCompatibility,
+  })) : []
+  let objectiveScore = result.status === 'success' ? result.objectiveScore : null
+
+  if (manualRooms) {
+    if (result.status !== 'success' || !roomDefinitions) throw new Error('確定できる部屋割り案がありません。')
+    const definitionById = new Map(roomDefinitions.map((room) => [room.id, room]))
+    const manualById = new Map<string, DashboardRoomAssignment>()
+    for (const room of manualRooms) {
+      if (manualById.has(room.id) || !definitionById.has(room.id)) throw new Error('部屋情報が現在の施設設定と一致しません。')
+      manualById.set(room.id, room)
+    }
+    if (manualById.size !== roomDefinitions.length) throw new Error('すべての部屋を含む割当を確定してください。')
+    const canonicalRooms = roomDefinitions.map((definition) => ({
+      id: definition.id,
+      name: definition.name,
+      capacity: definition.capacity,
+      minOccupancy: definition.minOccupancy,
+      petIds: [...(manualById.get(definition.id)?.petIds ?? [])],
+    }))
+    const validation = validateManualAssignments(
+      pets.map(({ id, name }) => ({ id, name })),
+      canonicalRooms,
+      result.pairResults.map((pair) => ({ petAId: pair.petAId, petBId: pair.petBId, allowed: pair.allowed })),
+    )
+    if (!validation.valid) throw new Error(validation.issues[0]?.message ?? '手動割当を確定できません。')
+    const pairByIds = new Map(result.pairResults.map((pair) => [pair.pairKey, pair]))
+    let manualObjectiveScore = 0
+    snapshotRooms = canonicalRooms.map((room) => {
+      const scores: number[] = []
+      for (let left = 0; left < room.petIds.length; left += 1) for (let right = left + 1; right < room.petIds.length; right += 1) {
+        const key = [room.petIds[left], room.petIds[right]].sort((a, b) => a.localeCompare(b)).join('::')
+        const pair = pairByIds.get(key)
+        if (!pair) throw new Error('相性データを確認できない組み合わせが含まれています。')
+        scores.push(pair.score)
+        manualObjectiveScore += pair.score - 50
+      }
+      return {
+        roomId: room.id,
+        petIds: room.petIds,
+        averageCompatibility: scores.length ? Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length * 10) / 10 : null,
+        minimumCompatibility: scores.length ? Math.min(...scores) : null,
+      }
+    })
+    objectiveScore = Math.round(manualObjectiveScore * 10) / 10
+  }
+
   return {
     id: crypto.randomUUID(),
     status,
@@ -98,19 +168,28 @@ function createMatchingSnapshot(result: MatchingResult, pets: readonly DomainPet
       allowed: pair.allowed,
       hardConstraintCodes: pair.hardConstraints.map((constraint) => constraint.code),
     })),
-    rooms: result.status === 'success' ? result.rooms.map((room) => ({
-      roomId: room.roomId,
-      petIds: room.petIds,
-      averageCompatibility: room.averageCompatibility,
-      minimumCompatibility: room.minimumCompatibility,
-    })) : [],
-    objectiveScore: result.status === 'success' ? result.objectiveScore : null,
+    rooms: snapshotRooms,
+    objectiveScore,
     createdAt: new Date().toISOString(),
   }
 }
 
-function toDashboardPets(pets: readonly DomainPetProfile[]): DashboardPetProfile[] {
-  return pets.map((pet) => ({ id: pet.id, name: pet.name, breed: pet.breed, ageLabel: `${pet.ageYears}歳`, avatarUrl: pet.photoUrl }))
+function toDashboardPets(pets: readonly DomainPetProfile[], intakes: readonly OwnerIntake[]): DashboardPetProfile[] {
+  const intakeById = new Map(intakes.map((intake) => [intake.id, intake]))
+  return pets.map((pet) => {
+    const intake = intakeById.get(pet.id)
+    return {
+      id: pet.id,
+      name: pet.name,
+      breed: pet.breed,
+      ageLabel: `${pet.ageYears}歳`,
+      avatarUrl: pet.photoUrl,
+      personality: intake?.pet.personality || pet.notes,
+      aiSummary: intake?.aiAnalysis?.summary,
+      aiCautions: intake?.aiAnalysis?.riskFlags,
+      aiRecommendations: intake?.aiAnalysis?.compatibilitySignals,
+    }
+  })
 }
 
 function firebaseConfigurationError(): string | null {
@@ -124,6 +203,7 @@ function firebaseConfigurationError(): string | null {
 
 function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile;onChangeStaff:()=>void;onSignOut:()=>void}) {
   const [pets, setPets] = useState<DomainPetProfile[]>([])
+  const [intakes, setIntakes] = useState<OwnerIntake[]>([])
   const [dataState, setDataState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [isConfirmed, setIsConfirmed] = useState(false)
@@ -136,8 +216,8 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
 
   const rooms = useMemo(() => createRooms(pets.length), [pets.length])
   const matchingResult = useMemo(() => pets.length > 0 ? createOptimalRoomPlan(pets, rooms) : null, [pets, rooms])
-  const dashboardPets = useMemo(() => toDashboardPets(pets), [pets])
-  const dashboardPairs = useMemo(() => matchingResult ? toDashboardPairs(matchingResult, pets) : [], [matchingResult, pets])
+  const dashboardPets = useMemo(() => toDashboardPets(pets, intakes), [intakes, pets])
+  const dashboardPairs = useMemo(() => matchingResult ? toDashboardPairs(matchingResult, pets, intakes) : [], [intakes, matchingResult, pets])
   const dashboardRooms = useMemo(() => matchingResult ? toDashboardRooms(matchingResult, rooms) : [], [matchingResult, rooms])
 
   const refreshPromise = useRef<Promise<DomainPetProfile[]> | null>(null)
@@ -155,6 +235,7 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
     setDataState('loading')
     try {
       const intakes = await runtime.services.intakeRepository.listRecent(25)
+      setIntakes(intakes)
       await Promise.all(intakes.filter(intake => intake.status === 'ready' && intake.matchingProfile).map(intake =>
         runtime.services.petRepository.saveIfAbsent(intakeToPetProfile({ intakeId:intake.id, pet:intake.pet, matchingProfile:intake.matchingProfile }))))
       const page = await runtime.services.petRepository.listPage(20)
@@ -199,7 +280,7 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
     }
   }, [loadPets])
 
-  const saveCurrentMatching = useCallback(async (confirmation: boolean) => {
+  const saveCurrentMatching = useCallback(async (confirmation: boolean, manualRooms?: readonly DashboardRoomAssignment[]) => {
     const configurationError = firebaseConfigurationError()
     if (configurationError || !runtime.ok) {
       setStatus({ tone: 'error', message: configurationError ?? 'サービスを初期化できませんでした。' })
@@ -209,10 +290,20 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
       setStatus({ tone: 'error', message: '再計算するプロフィールがありません。' })
       return
     }
+    if (confirmation && !manualRooms) {
+      setStatus({ tone: 'error', message: '検証済みの手動割当を確認できないため確定できません。' })
+      return
+    }
     setIsOptimizing(true)
     setIsConfirmed(false)
     try {
-      await runtime.services.operationRepository.saveMatching(createMatchingSnapshot(matchingResult, pets, confirmation ? 'confirmed' : 'proposed'))
+      await runtime.services.operationRepository.saveMatching(createMatchingSnapshot(
+        matchingResult,
+        pets,
+        confirmation ? 'confirmed' : 'proposed',
+        confirmation ? rooms : undefined,
+        confirmation ? manualRooms : undefined,
+      ))
       setIsConfirmed(confirmation)
       setStatus({
         tone: 'success',
@@ -227,7 +318,7 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
     } finally {
       setIsOptimizing(false)
     }
-  }, [matchingResult, pets])
+  }, [matchingResult, pets, rooms])
 
   const applyObservation = useCallback(async (submission: ObservationSubmission) => {
     const configurationError = firebaseConfigurationError()
@@ -298,7 +389,7 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
       <button type="button" disabled={dataState==='loading'} onClick={()=>void loadPets().catch(()=>undefined)}>登録情報を更新</button>
     </div>
     {dataState==='ready' && matchingResult ? <>
-      <StaffDashboard key={staff.id} pets={dashboardPets} pairs={dashboardPairs} rooms={dashboardRooms} isOptimizing={isOptimizing} isConfirmed={isConfirmed} onIssueInvite={issueInvite} issuedByLabel={staff.name} onRunOptimization={()=>void saveCurrentMatching(false)} onConfirm={()=>void saveCurrentMatching(true)} />
+      <StaffDashboard key={staff.id} pets={dashboardPets} pairs={dashboardPairs} rooms={dashboardRooms} isOptimizing={isOptimizing} isConfirmed={isConfirmed} onIssueInvite={issueInvite} issuedByLabel={staff.name} onRunOptimization={()=>void saveCurrentMatching(false)} onAssignmentsChange={()=>setIsConfirmed(false)} onConfirm={(manualRooms)=>void saveCurrentMatching(true,manualRooms)} />
       <div className="app-observation-shell"><ObservationPanel pets={dashboardPets} isSubmitting={isOptimizing} onSubmit={applyObservation}/></div>
     </> : dataState==='ready' ? <div className="app-empty-facility">
       <section className="app-state-panel"><h1>わんちゃんの登録を受け付けましょう</h1><p>登録URLを飼い主さまへお渡しください。登録後に「登録情報を更新」で反映できます。</p></section>
