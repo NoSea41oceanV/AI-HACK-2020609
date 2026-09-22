@@ -39,8 +39,8 @@ interface WorkerClientOptions {
 
 export const AI_MEDIA_LIMITS = {
   imageBytes: 5 * 1024 * 1024,
-  videoBytes: 20 * 1024 * 1024,
-  totalBytes: 20 * 1024 * 1024,
+  videoBytes: 40 * 1024 * 1024,
+  totalBytes: 40 * 1024 * 1024,
 } as const;
 
 export const AI_MEDIA_TYPES = {
@@ -92,7 +92,7 @@ export const validateOwnerAnalysisMedia = (input: Pick<OwnerAnalysisInput, "phot
   if (input.video) assertMediaFile("video", input.video);
   const totalBytes = (input.photo?.size ?? 0) + (input.video?.size ?? 0);
   if (totalBytes > AI_MEDIA_LIMITS.totalBytes) {
-    throw new WorkerClientError("写真と動画の合計サイズは20MB以下にしてください。", "media_total_too_large", 413);
+    throw new WorkerClientError("写真と動画の合計サイズは40MB以下にしてください。", "media_total_too_large", 413);
   }
 };
 

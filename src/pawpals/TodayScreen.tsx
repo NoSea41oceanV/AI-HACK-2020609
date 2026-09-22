@@ -36,7 +36,7 @@ export default function TodayScreen(props: TodayScreenProps) {
 }
 
 function DailyOperationsEditor({
-  pets, matchingResult, rooms, matchingHistory, observations, busy, staffName,
+  pets, matchingResult, rooms, matchingHistory, observations, busy,
   operationDate, dailyOperation, roomSettings, currentPlan, auditEntries,
   onSaveDailyPets, onSaveRooms, onOptimize, onDecidePlan,
 }: TodayScreenProps) {
@@ -184,8 +184,7 @@ function DailyOperationsEditor({
           {matchingResult?.status === 'infeasible' ? <p className="daily-message daily-message-error" role="alert">編成案を作成できませんでした。{matchingResult.message}</p> : null}
           </div>
           <div className="approval">
-            <div><b>操作担当：{staffName}</b><small>最新の案を確認し、承認または却下を記録します。</small></div>
-            <label className="daily-reason">判断理由・確認メモ（却下の場合のみ必須）<textarea value={reason} disabled={!canDecide} maxLength={1000} placeholder="却下する場合は、理由を入力してください。" onChange={(event) => setReasonState({ planId: currentPlan?.id, value: event.target.value })} /></label>
+            <div className="daily-reason"><textarea aria-label="却下理由" value={reason} disabled={!canDecide} maxLength={1000} placeholder="却下する場合は、理由を入力してください。" onChange={(event) => setReasonState({ planId: currentPlan?.id, value: event.target.value })} /></div>
             <div className="approval-buttons">
               <button className="secondary" type="button" disabled={!canOptimize} onClick={() => void run('部屋割りの再計算', onOptimize)}>部屋割りを再計算</button>
               <button className="danger-outline" type="button" disabled={!canDecide} onClick={() => void decide('rejected')}>この案を却下</button>

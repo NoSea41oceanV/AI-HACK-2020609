@@ -55,12 +55,18 @@ const HEALTH_KEYS = ['mixedVaccine', 'rabiesVaccine', 'fleaTickPrevention', 'foo
 const SOCIAL_KEYS = ['multiDogExperience', 'facilityExperience', 'puppySocialization', 'troubleHistory'] as const
 const BEHAVIOR_KEYS = ['firstMeeting', 'playPreference', 'resourceReaction', 'excitement', 'recovery', 'stressResponse'] as const
 const STRUCTURED_KEYS = [...BASIC_KEYS, ...HEALTH_KEYS, ...SOCIAL_KEYS, ...BEHAVIOR_KEYS]
-const BREEDS = ['トイプードル', '柴犬', 'チワワ', 'ミニチュアダックスフンド', 'フレンチブルドッグ', 'ゴールデンレトリバー', 'ラブラドールレトリバー', 'ポメラニアン', 'その他'] as const
+const OTHER_BREED = 'その他'
+const MAX_BREED_LENGTH = 80
+const BREEDS = ['トイプードル', '柴犬', 'チワワ', 'ミニチュアダックスフンド', 'フレンチブルドッグ', 'ゴールデンレトリバー', 'ラブラドールレトリバー', 'ポメラニアン', OTHER_BREED] as const
 
 export function createOwnerRegistrationPayload(values: FormData, inviteId: string, media: OwnerRegistrationPayload['media']): OwnerRegistrationPayload {
   const structured = Object.fromEntries(STRUCTURED_KEYS.map((key) => [key, String(values.get(key) ?? '').trim()]))
   if (!isStructuredIntakeAnswers(structured) || STRUCTURED_INTAKE_TEXT_KEYS.some((key) => !structured[key])) throw new Error('健康・社会化歴・いつもの様子の必須項目を確認してください。')
   if (values.get('consent') !== 'accepted') throw new Error('情報の利用について確認し、同意してください。')
+  const selectedBreed = String(values.get('breed') ?? '').trim()
+  const breed = selectedBreed === OTHER_BREED ? String(values.get('customBreed') ?? '').trim() : selectedBreed
+  if (!breed) throw new Error(selectedBreed === OTHER_BREED ? 'その他の犬種を入力してください。' : '犬種を選択してください。')
+  if (breed.length > MAX_BREED_LENGTH) throw new Error(`犬種は${MAX_BREED_LENGTH}文字以内で入力してください。`)
   return {
     inviteId,
     owner: {
@@ -69,7 +75,7 @@ export function createOwnerRegistrationPayload(values: FormData, inviteId: strin
     },
     pet: {
       name: String(values.get('petName') ?? '').trim(),
-      breed: String(values.get('breed') ?? '').trim(),
+      breed,
       age: Number(values.get('age')),
       weightKg: Number(values.get('weightKg')),
       sex: String(values.get('sex')) as PetSex,
@@ -126,6 +132,7 @@ export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormPr
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [selectedBreed, setSelectedBreed] = useState('')
 
   useEffect(
     () => () => {
@@ -155,7 +162,7 @@ export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormPr
     const allowedTypes = kind === 'photo' ? PHOTO_TYPES : VIDEO_TYPES
     const maxBytes = kind === 'photo' ? MAX_PHOTO_BYTES : MAX_VIDEO_BYTES
     const typeLabel = kind === 'photo' ? 'JPG・PNG・WebP' : 'MP4・WebM・MOV'
-    const sizeLabel = kind === 'photo' ? '5MB' : '20MB'
+    const sizeLabel = kind === 'photo' ? '5MB' : '40MB'
 
     if (!allowedTypes.includes(file.type)) {
       setMedia({ file: null, previewUrl: '', error: `${typeLabel}形式のファイルを選んでください。` })
@@ -269,11 +276,17 @@ export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormPr
             </label>
             <label className="owner-field owner-field-wide">
               <span>犬種 <em>必須</em></span>
-              <select name="breed" defaultValue="" required>
+              <select name="breed" value={selectedBreed} required onChange={(event) => setSelectedBreed(event.target.value)}>
                 <option value="" disabled>犬種を選択してください</option>
                 {BREEDS.map((breed) => <option value={breed} key={breed}>{breed}</option>)}
               </select>
             </label>
+            {selectedBreed === OTHER_BREED ? (
+              <label className="owner-field owner-field-wide">
+                <span>犬種を入力 <em>必須</em></span>
+                <input name="customBreed" type="text" required maxLength={MAX_BREED_LENGTH} placeholder="例：ミックス（マルチーズ×プードル）" />
+              </label>
+            ) : null}
             <label className="owner-field">
               <span>年齢 <em>必須</em></span>
               <span className="owner-input-unit"><input name="age" type="number" inputMode="decimal" min="0" max="30" step="0.1" required /><b>歳</b></span>
@@ -320,7 +333,7 @@ export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormPr
 
         <fieldset disabled={isSubmitting}>
           <legend><span>F</span><span><b>写真・動画</b><small>任意の補助資料</small></span></legend>
-          <p className="owner-fieldset-help">表情や動きが分かるファイルがあると、性格傾向の確認に役立ちます。音声ファイルは使用しません。写真と動画は合計20MBまでです。</p>
+          <p className="owner-fieldset-help">表情や動きが分かるファイルがあると、性格傾向の確認に役立ちます。音声ファイルは使用しません。写真と動画は合計40MBまでです。</p>
           <div className="owner-media-grid">
             <MediaInput
               id="owner-photo"
@@ -336,7 +349,7 @@ export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormPr
               id="owner-video"
               kind="video"
               title="動画を追加"
-              note="MP4・WebM・MOV / 20MBまで"
+              note="MP4・WebM・MOV / 40MBまで"
               accept="video/mp4,video/webm,video/quicktime"
               selection={video}
               onChange={(event) => selectMedia('video', event)}

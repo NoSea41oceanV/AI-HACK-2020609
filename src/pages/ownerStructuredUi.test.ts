@@ -11,6 +11,7 @@ const axes: PersonalityAxes = { extraversion: 0, sociability: 76, neuroticism: 3
 
 function completedAnswers() {
   const values = new FormData()
+  values.set('breed', 'トイプードル')
   for (const [key, options] of Object.entries(STRUCTURED_INTAKE_OPTIONS)) values.set(key, options[0])
   for (const key of ['medicalHistory', 'sensoryJointConcerns', 'troubleHistory']) values.set(key, 'なし')
   values.set('concerns', ' 花火が苦手です。 ')
@@ -44,6 +45,29 @@ describe('owner structured registration UI', () => {
     expect(() => createOwnerRegistrationPayload(missingConsent, 'invite-test', { photo: null, video: null })).toThrow('同意')
   })
 
+  it('saves the selected breed unless other is selected', () => {
+    const selectedBreed = completedAnswers()
+    selectedBreed.set('breed', '柴犬')
+    selectedBreed.set('customBreed', '保存しない犬種')
+    expect(createOwnerRegistrationPayload(selectedBreed, 'invite-test', { photo: null, video: null }).pet.breed).toBe('柴犬')
+
+    const customBreed = completedAnswers()
+    customBreed.set('breed', 'その他')
+    customBreed.set('customBreed', ' ミックス（マルチーズ×プードル） ')
+    expect(createOwnerRegistrationPayload(customBreed, 'invite-test', { photo: null, video: null }).pet.breed).toBe('ミックス（マルチーズ×プードル）')
+  })
+
+  it('requires an other breed and enforces the existing 80-character limit', () => {
+    const missingCustomBreed = completedAnswers()
+    missingCustomBreed.set('breed', 'その他')
+    expect(() => createOwnerRegistrationPayload(missingCustomBreed, 'invite-test', { photo: null, video: null })).toThrow('その他の犬種')
+
+    const longCustomBreed = completedAnswers()
+    longCustomBreed.set('breed', 'その他')
+    longCustomBreed.set('customBreed', '犬'.repeat(81))
+    expect(() => createOwnerRegistrationPayload(longCustomBreed, 'invite-test', { photo: null, video: null })).toThrow('80文字以内')
+  })
+
   it('renders every required question once with blank selections and explicit unchecked consent', () => {
     const html = renderToStaticMarkup(createElement(OwnerForm, { inviteId: 'invite-test', onSubmit: () => undefined }))
     for (const key of Object.keys(STRUCTURED_INTAKE_LABELS)) {
@@ -57,6 +81,10 @@ describe('owner structured registration UI', () => {
     expect(html).toContain('氏名・連絡先はAIに送りません')
     expect(html).toContain('動画本体は保存しません')
     expect(html).toContain('name="concerns"')
+    expect(html).not.toContain('name="customBreed"')
+    expect(html).toContain('写真と動画は合計40MBまでです。')
+    expect(html).toContain('MP4・WebM・MOV / 40MBまで')
+    expect(html).not.toContain('20MB')
   })
 })
 

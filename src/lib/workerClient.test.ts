@@ -215,14 +215,23 @@ describe("validateOwnerAnalysisMedia", () => {
   it("keeps client limits aligned with the Worker contract", () => {
     expect(AI_MEDIA_LIMITS).toEqual({
       imageBytes: 5 * 1024 * 1024,
-      videoBytes: 20 * 1024 * 1024,
-      totalBytes: 20 * 1024 * 1024,
+      videoBytes: 40 * 1024 * 1024,
+      totalBytes: 40 * 1024 * 1024,
     });
   });
 
+  it("accepts a video at 40MB and rejects one byte over the limit", () => {
+    const atLimit = { type: "video/mp4", size: AI_MEDIA_LIMITS.videoBytes } as Blob;
+    const overLimit = { type: "video/mp4", size: AI_MEDIA_LIMITS.videoBytes + 1 } as Blob;
+    expect(() => validateOwnerAnalysisMedia({ video: atLimit })).not.toThrow();
+    expect(() => validateOwnerAnalysisMedia({ video: overLimit })).toThrowError(
+      expect.objectContaining({ code: "media_too_large" }),
+    );
+  });
+
   it("rejects a combined payload that cannot fit the analyze request", () => {
-    const photo = new Blob([new Uint8Array(1024 * 1024)], { type: "image/jpeg" });
-    const video = new Blob([new Uint8Array(20 * 1024 * 1024)], { type: "video/mp4" });
+    const photo = { type: "image/jpeg", size: 1024 * 1024 } as Blob;
+    const video = { type: "video/mp4", size: AI_MEDIA_LIMITS.videoBytes } as Blob;
     expect(() => validateOwnerAnalysisMedia({ photo, video })).toThrowError(
       expect.objectContaining({ code: "media_total_too_large" }),
     );
