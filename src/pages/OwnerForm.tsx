@@ -1,6 +1,12 @@
 import { ChangeEvent, FormEvent, useEffect, useState } from 'react'
 import { AI_MEDIA_LIMITS, AI_MEDIA_TYPES, validateOwnerAnalysisMedia } from '../lib/workerClient'
 import './OwnerForm.css'
+import {
+  PERSONALITY_QUESTIONS,
+  serializePersonalityAnswers,
+  type PersonalityAnswers,
+  type PersonalityQuestionKey,
+} from './personalityOptions'
 
 export type PetSex = 'male' | 'female' | 'unknown'
 
@@ -76,6 +82,9 @@ export default function OwnerForm({ onSubmit, inviteId }: OwnerFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const [personalityAnswers, setPersonalityAnswers] = useState<PersonalityAnswers>({})
+  const [personalityOtherDetails, setPersonalityOtherDetails] = useState<PersonalityAnswers>({})
+  const [personalityErrors, setPersonalityErrors] = useState<PersonalityAnswers>({})
 
   useEffect(
     () => () => {
@@ -129,11 +138,41 @@ export default function OwnerForm({ onSubmit, inviteId }: OwnerFormProps) {
     else setVideo(EMPTY_MEDIA)
   }
 
+  const updatePersonalityAnswer = (key: PersonalityQuestionKey, value: string) => {
+    const nextAnswers = { ...personalityAnswers, [key]: value }
+    setPersonalityAnswers(nextAnswers)
+    if (value !== 'その他') {
+      setPersonalityOtherDetails((current) => ({ ...current, [key]: '' }))
+    }
+    if (personalityErrors[key]) {
+      const nextDetails = value === 'その他' ? personalityOtherDetails : { ...personalityOtherDetails, [key]: '' }
+      setPersonalityErrors(serializePersonalityAnswers(nextAnswers, nextDetails).errors)
+    }
+  }
+
+  const updatePersonalityOtherDetail = (key: PersonalityQuestionKey, value: string) => {
+    const nextDetails = { ...personalityOtherDetails, [key]: value }
+    setPersonalityOtherDetails(nextDetails)
+    if (personalityErrors[key]) {
+      setPersonalityErrors(serializePersonalityAnswers(personalityAnswers, nextDetails).errors)
+    }
+  }
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (photo.error || video.error) return
 
     const form = event.currentTarget
+    const serializedPersonality = serializePersonalityAnswers(personalityAnswers, personalityOtherDetails)
+    if (Object.keys(serializedPersonality.errors).length > 0) {
+      setPersonalityErrors(serializedPersonality.errors)
+      const firstInvalidKey = PERSONALITY_QUESTIONS.find(({ key }) => serializedPersonality.errors[key])?.key
+      if (firstInvalidKey) {
+        const suffix = personalityAnswers[firstInvalidKey] === 'その他' ? '-other' : ''
+        document.getElementById(`owner-personality-${firstInvalidKey}${suffix}`)?.focus()
+      }
+      return
+    }
     if (!form.reportValidity()) return
     const values = new FormData(form)
 
@@ -156,8 +195,8 @@ export default function OwnerForm({ onSubmit, inviteId }: OwnerFormProps) {
         age: Number(values.get('age')),
         weightKg: Number(values.get('weightKg')),
         sex: String(values.get('sex')) as PetSex,
-        personality: String(values.get('personality') ?? '').trim(),
-        playStyle: String(values.get('playStyle') ?? '').trim(),
+        personality: serializedPersonality.value,
+        playStyle: serializedPersonality.playStyle,
         concerns: String(values.get('concerns') ?? '').trim(),
       },
       media: { photo: photo.file, video: video.file },
@@ -173,6 +212,9 @@ export default function OwnerForm({ onSubmit, inviteId }: OwnerFormProps) {
       if (video.previewUrl) URL.revokeObjectURL(video.previewUrl)
       setPhoto(EMPTY_MEDIA)
       setVideo(EMPTY_MEDIA)
+      setPersonalityAnswers({})
+      setPersonalityOtherDetails({})
+      setPersonalityErrors({})
       setSubmitted(true)
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : '送信できませんでした。時間をおいてお試しください。')
@@ -206,7 +248,7 @@ export default function OwnerForm({ onSubmit, inviteId }: OwnerFormProps) {
         </div>
       </section>
 
-      <form className="owner-form" onSubmit={handleSubmit} noValidate={false}>
+      <form className="owner-form" onSubmit={handleSubmit} noValidate>
         <fieldset>
           <legend><span>01</span>飼い主さまの情報</legend>
           <div className="owner-form-grid">
@@ -255,14 +297,56 @@ export default function OwnerForm({ onSubmit, inviteId }: OwnerFormProps) {
         <fieldset>
           <legend><span>03</span>性格と普段の過ごし方</legend>
           <div className="owner-form-grid">
-            <label className="owner-field owner-field-wide">
-              <span>性格 <em>必須</em></span>
-              <textarea name="personality" required maxLength={500} rows={4} placeholder="人や他の犬への接し方、慣れるまでの様子など" />
-            </label>
-            <label className="owner-field owner-field-wide">
-              <span>好きな遊び・遊び方 <em>必須</em></span>
-              <textarea name="playStyle" required maxLength={500} rows={4} placeholder="例：ボール遊びが好き。追いかけられるより追いかける方が好き。" />
-            </label>
+            <div className="owner-field owner-field-wide owner-personality-section">
+              <div className="owner-personality-heading">
+                <strong>いつもの様子 <em>必須</em></strong>
+                <span>専門用語は使わず、普段の場面について教えてください。</span>
+              </div>
+              <div className="owner-personality-grid">
+                {PERSONALITY_QUESTIONS.map(({ key, label, options }) => {
+                  const answer = personalityAnswers[key] ?? ''
+                  const error = personalityErrors[key]
+                  const errorId = `owner-personality-${key}-error`
+                  return (
+                    <div className="owner-personality-question" key={key}>
+                      <label htmlFor={`owner-personality-${key}`}>{label}</label>
+                      <select
+                        id={`owner-personality-${key}`}
+                        value={answer}
+                        required
+                        disabled={isSubmitting}
+                        aria-invalid={error ? 'true' : undefined}
+                        aria-describedby={error ? errorId : undefined}
+                        onChange={(event) => updatePersonalityAnswer(key, event.target.value)}
+                      >
+                        <option value="" disabled>選択してください</option>
+                        {options.map((option) => <option value={option} key={option}>{option}</option>)}
+                        <option value="わからない">わからない</option>
+                        <option value="その他">その他</option>
+                      </select>
+                      {answer === 'その他' ? (
+                        <label className="owner-personality-other">
+                          <span>{label}の補足 <em>必須</em></span>
+                          <textarea
+                            id={`owner-personality-${key}-other`}
+                            value={personalityOtherDetails[key] ?? ''}
+                            required
+                            maxLength={80}
+                            rows={2}
+                            disabled={isSubmitting}
+                            aria-invalid={error ? 'true' : undefined}
+                            aria-describedby={error ? errorId : undefined}
+                            placeholder="普段の様子を短く入力してください"
+                            onChange={(event) => updatePersonalityOtherDetail(key, event.target.value)}
+                          />
+                        </label>
+                      ) : null}
+                      {error ? <p id={errorId} className="owner-personality-error" role="alert">{error}</p> : null}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
             <label className="owner-field owner-field-wide">
               <span>苦手なこと・注意点</span>
               <textarea name="concerns" maxLength={500} rows={4} placeholder="苦手な音、触られるのが苦手な場所、興奮しやすい状況など" />
