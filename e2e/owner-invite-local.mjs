@@ -1,8 +1,11 @@
 // Local-only synthetic E2E setup. Never connects to a deployed Firebase project.
 import { createServer } from 'node:http';
 const project = 'demo-pawpair';
-const authOrigin = 'http://127.0.0.1:9099';
-const firestoreOrigin = 'http://127.0.0.1:8189';
+const authOrigin = process.env.PAWPAIR_E2E_AUTH_ORIGIN ?? 'http://127.0.0.1:9099';
+const firestoreOrigin = process.env.PAWPAIR_E2E_FIRESTORE_ORIGIN ?? 'http://127.0.0.1:8189';
+const appOrigin = process.env.PAWPAIR_E2E_APP_ORIGIN ?? 'http://127.0.0.1:5191';
+const aiPort = Number(process.env.PAWPAIR_E2E_AI_PORT ?? 5193);
+if (![authOrigin,firestoreOrigin,appOrigin].every(origin=>/^http:\/\/127\.0\.0\.1:\d{2,5}$/.test(origin)) || !Number.isInteger(aiPort) || aiPort<1024 || aiPort>65535) throw new Error('Only loopback E2E endpoints are allowed');
 const email = 'facility-ui@example.test';
 const password = 'synthetic-e2e-only';
 async function authCall(method) {
@@ -26,9 +29,10 @@ for (const [id,name] of [['ui-staff-a','検証スタッフA'],['ui-staff-b','検
   await seed(`facilities/${uid}/staffProfiles/${id}`,{name:{stringValue:name},active:{booleanValue:true},createdAt:{timestampValue:new Date().toISOString()}});
 }
 // Deliberate AI test double: validates the non-PII boundary, with no external calls.
-const analysis={summary:'合成データによる検証結果',observations:['穏やか'],personalityTraits:[],compatibilitySignals:[],riskFlags:[],confidence:0.8,matchingProfile:{energyLevel:3,sociability:3,anxietyLevel:2,assertiveness:2,resourceGuarding:1,playStyles:['gentle']}};
+const personalityAxes={extraversion:50,sociability:50,neuroticism:25,trainability:60,resourceGuarding:20,assertiveness:40,resilience:65};
+const analysis={personalityAxes,summary:'合成データによる検証結果',observations:['穏やか'],personalityTraits:[],compatibilitySignals:[],riskFlags:[],confidence:0.8,matchingProfile:{personalityAxes,energyLevel:3,sociability:3,anxietyLevel:2,assertiveness:2,resourceGuarding:1,playStyles:['gentle']}};
 createServer(async(req,res)=>{
-  res.setHeader('access-control-allow-origin','http://127.0.0.1:5191');
+  res.setHeader('access-control-allow-origin',appOrigin);
   res.setHeader('access-control-allow-methods','POST,OPTIONS');
   res.setHeader('access-control-allow-headers','content-type');
   res.setHeader('content-type','application/json');
@@ -39,13 +43,13 @@ createServer(async(req,res)=>{
   try {
     const payload=JSON.parse(body);
     const keys=Object.keys(payload.profile??{});
-    if(keys.some(key=>!['personality','playStyle','precautions'].includes(key))) throw new Error('Unexpected profile keys');
+    if(keys.some(key=>!['personality','playStyle','precautions','structured'].includes(key))) throw new Error('Unexpected profile keys');
     if(!Array.isArray(payload.media)||payload.media.some(item=>item.type!=='image'))throw new Error('Only silent image media allowed');
     res.end(JSON.stringify({ok:true,requestId:'synthetic-ui-e2e',model:'local-test-double',analysis}));
   }catch{res.writeHead(400).end(JSON.stringify({error:{message:'E2E privacy boundary rejected',code:'fixture_rejected'}}));}
-}).listen(5193,'127.0.0.1',()=>{
+}).listen(aiPort,'127.0.0.1',()=>{
   console.log('Synthetic fixture ready; external AI is NOT tested.');
   console.log(`Emulator facility UID: ${uid}`);
   console.log(`Local-only login: ${email} / ${password}`);
-  console.log('AI test double: http://127.0.0.1:5193 (Ctrl+C to stop)');
+  console.log('AI test double: http://127.0.0.1:'+aiPort+' (Ctrl+C to stop)');
 });
