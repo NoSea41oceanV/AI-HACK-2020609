@@ -50,6 +50,14 @@ export class LocalPetRepository implements PetRepository {
     this.write(current.sort(comparePets));
   }
 
+  async saveIfAbsent(pet: PetProfile): Promise<boolean> {
+    const current = this.read();
+    if (current.some((item) => item.id === pet.id)) return false;
+    current.push({ ...pet, updatedAt: new Date().toISOString() });
+    this.write(current.sort(comparePets));
+    return true;
+  }
+
   async saveAll(pets: readonly PetProfile[]): Promise<void> {
     const timestamp = new Date().toISOString();
     this.write(pets.map((pet) => ({ ...pet, updatedAt: pet.updatedAt ?? timestamp })).sort(comparePets));
