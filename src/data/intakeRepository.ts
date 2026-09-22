@@ -1,4 +1,5 @@
 import type { IntakeAiAnalysis, IntakeMatchingProfile } from "../domain/intakeProfile";
+import { isIntakeConsent, isPersonalityAxes, isStructuredIntakeAnswers, samePersonalityAxes, type IntakeConsent, type StructuredIntakeAnswers } from "../domain/structuredIntake";
 
 export type PetSex = "male" | "female" | "unknown";
 export type IntakeStatus = "submitted" | "analyzing" | "ready" | "error";
@@ -18,7 +19,9 @@ export interface OwnerIntake {
   inviteId: string;
   facilityId: string;
   owner: { name: string; contact: string };
+  consent?: IntakeConsent;
   pet: {
+    structured?: StructuredIntakeAnswers;
     name: string;
     breed: string;
     ageYears: number;
@@ -61,6 +64,7 @@ const isMatchingProfile = (value: unknown): value is IntakeMatchingProfile => {
   if (!isRecord(value)) return false;
   const allowedStyles = new Set(["chase", "wrestle", "tug", "fetch", "gentle", "solo"]);
   return isScale(value.energyLevel) && isScale(value.sociability) && isScale(value.anxietyLevel) &&
+    (value.personalityAxes === undefined || isPersonalityAxes(value.personalityAxes)) &&
     isScale(value.assertiveness) && isScale(value.resourceGuarding, 0) &&
     isStringArray(value.playStyles) && value.playStyles.every((style) => allowedStyles.has(style)) &&
     isStringArray(value.hardBlockedPetIds);
@@ -71,6 +75,8 @@ const isAiAnalysis = (value: unknown): value is IntakeAiAnalysis => {
       !isStringArray(value.compatibilitySignals) || !isStringArray(value.riskFlags) ||
       !isFiniteNumber(value.confidence) || value.confidence < 0 || value.confidence > 1 ||
       !Array.isArray(value.personalityTraits) || !isMatchingProfile(value.matchingProfile)) return false;
+  if (value.personalityAxes !== undefined && (!isPersonalityAxes(value.personalityAxes) ||
+      !isPersonalityAxes(value.matchingProfile.personalityAxes) || !samePersonalityAxes(value.personalityAxes, value.matchingProfile.personalityAxes))) return false;
   return value.personalityTraits.every((trait) => isRecord(trait) && typeof trait.label === "string" &&
     typeof trait.evidence === "string" && isFiniteNumber(trait.confidence) && trait.confidence >= 0 && trait.confidence <= 1);
 };
@@ -78,6 +84,14 @@ const isAiAnalysis = (value: unknown): value is IntakeAiAnalysis => {
 export const isOwnerIntake = (value: unknown): value is OwnerIntake => {
   if (!isRecord(value) || !isRecord(value.owner) || !isRecord(value.pet) || !isRecord(value.media)) return false;
   const pet = value.pet;
+  if (value.consent !== undefined && !isIntakeConsent(value.consent)) return false;
+  if (pet.structured !== undefined) {
+    if (!isStructuredIntakeAnswers(pet.structured) || !isIntakeConsent(value.consent)) return false;
+    if (value.aiAnalysis !== undefined && (!isAiAnalysis(value.aiAnalysis) || !isPersonalityAxes(value.aiAnalysis.personalityAxes))) return false;
+    if (value.matchingProfile !== undefined && (!isMatchingProfile(value.matchingProfile) || !isPersonalityAxes(value.matchingProfile.personalityAxes))) return false;
+    if (isAiAnalysis(value.aiAnalysis) && isMatchingProfile(value.matchingProfile) &&
+        !samePersonalityAxes(value.aiAnalysis.personalityAxes!, value.matchingProfile.personalityAxes!)) return false;
+  }
   return typeof value.id === "string" && typeof value.inviteId === "string" && typeof value.facilityId === "string" &&
     typeof value.owner.name === "string" && typeof value.owner.contact === "string" &&
     typeof pet.name === "string" && typeof pet.breed === "string" && isFiniteNumber(pet.ageYears) &&

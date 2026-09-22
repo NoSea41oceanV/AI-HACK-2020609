@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises'
+import { checkStructuredIntakeRules } from './scripts/structured-intake.rules-cases.mjs'
 import { assertFails, assertSucceeds, initializeTestEnvironment } from '@firebase/rules-unit-testing'
 import {
   collection,
@@ -16,7 +17,8 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 
-const projectId = 'demo-pawpair'
+// Keep contract fixtures and rules isolated from interactive UI emulator sessions.
+const projectId = `demo-pawpals-${Date.now().toString(36)}`
 const rules = await readFile(new URL('./firestore.rules', import.meta.url), 'utf8')
 const environment = await initializeTestEnvironment({
   projectId,
@@ -133,6 +135,7 @@ try {
   await assertFails(setDoc(doc(dbUnknown, 'facilities', nonFacility), { active: true, name: 'self-elevated' }))
   await assertFails(getDoc(doc(dbOwner, 'private', 'unknown')))
 
+  await checkStructuredIntakeRules(environment)
   console.log('Firestore Rules facility/invite isolation checks passed.')
 } finally {
   await environment.cleanup()

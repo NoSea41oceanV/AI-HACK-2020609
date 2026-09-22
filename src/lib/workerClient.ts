@@ -1,5 +1,6 @@
 import { PLAY_STYLES } from "../domain/types";
 import type { IntakeAiAnalysis, IntakeMatchingProfile } from "../domain/intakeProfile";
+import { isPersonalityAxes, isStructuredIntakeAnswers, samePersonalityAxes, type StructuredIntakeAnswers } from "../domain/structuredIntake";
 
 export interface WorkerHealth {
   ok: true;
@@ -13,6 +14,7 @@ export interface WorkerMediaInput {
   dataUrl?: string;
 }
 export interface WorkerAnalyzeProfile {
+  structured?: StructuredIntakeAnswers;
   personality: string;
   playStyle: string;
   precautions: string;
@@ -47,6 +49,7 @@ export const AI_MEDIA_TYPES = {
 } as const;
 
 export interface OwnerAnalysisInput {
+  structured?: StructuredIntakeAnswers;
   personality: string;
   playStyle: string;
   concerns: string;
@@ -193,6 +196,9 @@ const extractSilentVideoFrames: VideoFrameExtractor = async (file) => {
 };
 
 const sanitizeAnalyzeProfile = (profile: WorkerAnalyzeProfile): WorkerAnalyzeProfile => {
+  if (profile?.structured !== undefined && !isStructuredIntakeAnswers(profile.structured)) {
+    throw new WorkerClientError("構造化回答の形式が不正です。", "invalid_structured_intake", 400);
+  }
   const values = {
     personality: profile?.personality,
     playStyle: profile?.playStyle,
@@ -206,13 +212,14 @@ const sanitizeAnalyzeProfile = (profile: WorkerAnalyzeProfile): WorkerAnalyzePro
       throw new WorkerClientError(`${key}は1000文字以下にしてください。`, "profile_too_long", 400);
     }
   }
-  if (!values.personality.trim() || !values.playStyle.trim()) {
+  if (!profile.structured && (!values.personality.trim() || !values.playStyle.trim())) {
     throw new WorkerClientError("性格と好きな遊び・遊び方を入力してください。", "owner_profile_required", 400);
   }
   return {
     personality: values.personality.trim(),
     playStyle: values.playStyle.trim(),
     precautions: values.precautions.trim(),
+    ...(profile.structured ? { structured: { ...profile.structured } } : {}),
   };
 };
 
@@ -223,6 +230,9 @@ const parseMatchingProfile = (value: unknown): IntakeMatchingProfile => {
     throw new WorkerClientError("AI分析のマッチング値が不正です。", "invalid_response");
   }
   const allowed = new Set<string>(PLAY_STYLES);
+  if (value.personalityAxes !== undefined && !isPersonalityAxes(value.personalityAxes)) {
+    throw new WorkerClientError("AI分析の7軸が不正です。", "invalid_response");
+  }
   if (value.playStyles.some((style) => !allowed.has(style)) || new Set(value.playStyles).size !== value.playStyles.length) {
     throw new WorkerClientError("AI分析の遊び方が不正です。", "invalid_response");
   }
@@ -235,10 +245,11 @@ const parseMatchingProfile = (value: unknown): IntakeMatchingProfile => {
     playStyles: value.playStyles as IntakeMatchingProfile["playStyles"],
     // A single-pet observation cannot identify a specific incompatible counterpart.
     hardBlockedPetIds: [],
+    ...(isPersonalityAxes(value.personalityAxes) ? { personalityAxes: { ...value.personalityAxes } } : {}),
   };
 };
 
-export const parseWorkerAnalysis = (value: unknown): IntakeAiAnalysis => {
+export const parseWorkerAnalysis = (value: unknown, requireAxes = false): IntakeAiAnalysis => {
   if (!isRecord(value) || typeof value.summary !== "string" || !isStringArray(value.observations) ||
       !isStringArray(value.compatibilitySignals) || !isStringArray(value.riskFlags) ||
       typeof value.confidence !== "number" || !Number.isFinite(value.confidence) ||
@@ -252,6 +263,11 @@ export const parseWorkerAnalysis = (value: unknown): IntakeAiAnalysis => {
     }
     return { label: item.label, evidence: item.evidence, confidence: item.confidence };
   });
+  const matchingProfile = parseMatchingProfile(value.matchingProfile);
+  if ((requireAxes || value.personalityAxes !== undefined) && (!isPersonalityAxes(value.personalityAxes) ||
+      !isPersonalityAxes(matchingProfile.personalityAxes) || !samePersonalityAxes(value.personalityAxes, matchingProfile.personalityAxes))) {
+    throw new WorkerClientError("AI分析の7軸が不足または不整合です。", "invalid_response");
+  }
   return {
     summary: value.summary,
     observations: value.observations,
@@ -259,7 +275,8 @@ export const parseWorkerAnalysis = (value: unknown): IntakeAiAnalysis => {
     compatibilitySignals: value.compatibilitySignals,
     riskFlags: value.riskFlags,
     confidence: value.confidence,
-    matchingProfile: parseMatchingProfile(value.matchingProfile),
+    matchingProfile,
+    ...(isPersonalityAxes(value.personalityAxes) ? { personalityAxes: { ...value.personalityAxes } } : {}),
   };
 };
 
@@ -337,7 +354,7 @@ export class AIWorkerClient {
     if (!isRecord(value) || value.ok !== true || typeof value.requestId !== "string" || typeof value.model !== "string") {
       throw new WorkerClientError("AI Workerの分析応答形式が不正です。", "invalid_response");
     }
-    return { ok: true, requestId: value.requestId, model: value.model, analysis: parseWorkerAnalysis(value.analysis), usage: value.usage };
+    return { ok: true, requestId: value.requestId, model: value.model, analysis: parseWorkerAnalysis(value.analysis, !!profile.structured), usage: value.usage };
   }
 
   async analyzeOwnerRegistration(input: OwnerAnalysisInput): Promise<WorkerAnalyzeResult> {
@@ -355,6 +372,7 @@ export class AIWorkerClient {
         personality: input.personality,
         playStyle: input.playStyle,
         precautions: input.concerns,
+        ...(input.structured !== undefined ? { structured: input.structured } : {}),
       },
       media,
     });

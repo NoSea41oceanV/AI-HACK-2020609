@@ -1,6 +1,8 @@
 import { PLAY_STYLES, type PetProfile, type PlayStyle } from "./types";
+import { isPersonalityAxes, type PersonalityAxes } from "./structuredIntake";
 
 export interface IntakeMatchingProfile {
+  personalityAxes?: PersonalityAxes;
   energyLevel: number;
   sociability: number;
   anxietyLevel: number;
@@ -11,6 +13,7 @@ export interface IntakeMatchingProfile {
 }
 
 export interface IntakeAiAnalysis {
+  personalityAxes?: PersonalityAxes;
   summary: string;
   observations: string[];
   personalityTraits: Array<{ label: string; evidence: string; confidence: number }>;
@@ -90,6 +93,7 @@ export const intakeToPetProfile = (source: IntakeProfileSource): PetProfile => {
     resourceGuarding: clampGuarding(ai?.resourceGuarding ?? Number.NaN, inferred.resourceGuarding),
     playStyles: aiStyles.length ? aiStyles : inferred.playStyles,
     hardBlockedPetIds: [...new Set(ai?.hardBlockedPetIds.filter(Boolean) ?? [])].sort(),
+    ...(isPersonalityAxes(ai?.personalityAxes) ? { personalityAxes: { ...ai.personalityAxes } } : {}),
     notes: [source.pet.personality, source.pet.playStyle, source.pet.concerns]
       .map((value) => value.trim()).filter(Boolean).join(" / ").slice(0, 500),
   };
