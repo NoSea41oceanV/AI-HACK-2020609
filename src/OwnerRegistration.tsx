@@ -25,7 +25,7 @@ export default function OwnerRegistration({ token }: { token:string|null }) {
   const [attempt,setAttempt]=useState(0)
   const [state,setState]=useState<InviteState>({kind:'loading'})
   const [steps,setSteps]=useState(INITIAL_STEPS)
-  const [complete,setComplete]=useState(false)
+  const [analysis,setAnalysis]=useState<IntakeAiAnalysis|null>(null)
   const cached=useRef<{signature:string;analysis:IntakeAiAnalysis}|null>(null)
   useEffect(()=>{
     let active=true
@@ -50,6 +50,7 @@ export default function OwnerRegistration({ token }: { token:string|null }) {
     const worker=createAIWorkerClient()
     if(worker.state.kind!=='enabled')throw new Error('現在、登録を受け付けられません。施設にお問い合わせください。')
     let step='analysis'
+    setAnalysis(null)
     setSteps(INITIAL_STEPS.map(item=>({...item,status:item.id===step?'active':'idle'})))
     try {
       // Recheck the capability before processing. No staff repositories are used on this route.
@@ -62,6 +63,7 @@ export default function OwnerRegistration({ token }: { token:string|null }) {
         cached.current={signature,analysis:result.analysis}
       }
       const analysis=cached.current.analysis
+      setAnalysis(analysis)
       step='intake'
       setSteps([{...INITIAL_STEPS[0],status:'done'},{...INITIAL_STEPS[1],status:'active'}])
       const intake:OwnerIntake={
@@ -72,7 +74,6 @@ export default function OwnerRegistration({ token }: { token:string|null }) {
       }
       await repository.save(intake)
       cached.current=null
-      setComplete(true)
       setSteps(INITIAL_STEPS)
     } catch(error) {
       setSteps(items=>items.map(item=>item.id===step?{...item,status:'error'}:item))
@@ -85,8 +86,37 @@ export default function OwnerRegistration({ token }: { token:string|null }) {
   if(state.kind==='loading')return <section className="app-state-panel" role="status"><h1>登録URLを確認しています</h1><p>そのままお待ちください。</p></section>
   if(state.kind==='invalid')return <OwnerInviteError reason="invalid" />
   if(state.kind==='unavailable')return <OwnerInviteError reason="unavailable" onRetry={()=>setAttempt(n=>n+1)} />
+  const isWorking=steps.some(item=>item.status==='active')
+  const hasError=steps.some(item=>item.status==='error')
+  const sidePanel=(
+    <aside className="owner-analysis-card" aria-labelledby="owner-analysis-title">
+      <div className="owner-analysis-card__head">
+        <div>
+          <span className="owner-eyebrow">AIプロフィール分析</span>
+          <h2 id="owner-analysis-title">AIプロフィール分析</h2>
+        </div>
+        <span className={`owner-analysis-status${isWorking?' owner-analysis-status--active':''}${hasError?' owner-analysis-status--error':''}`}>
+          {hasError?'確認が必要':isWorking?'処理中':analysis?'分析完了':'送信後に開始'}
+        </span>
+      </div>
+      <ProcessingStatus title="登録の進行状況" steps={steps} />
+      {analysis ? (
+        <div className="owner-analysis-result" aria-live="polite">
+          <strong>AIによる整理</strong>
+          <p>{analysis.summary}</p>
+          {analysis.observations.length>0 && <ul>{analysis.observations.slice(0,3).map(item=><li key={item}>{item}</li>)}</ul>}
+          <small>入力した氏名・連絡先はAIへ送信していません。</small>
+        </div>
+      ) : (
+        <div className="owner-analysis-empty">
+          <span aria-hidden="true">🐾</span>
+          <p>入力内容を送信すると、AIが普段の様子と任意の写真・動画から行動傾向を整理します。</p>
+          <small>動画は音声を使わず、抽出した静止画だけを一時処理します。</small>
+        </div>
+      )}
+    </aside>
+  )
   return <div className="app-shell app-shell--owner">
-    {!complete && <ProcessingStatus title="登録の進行状況" steps={steps} />}
-    <OwnerForm inviteId={state.invite.id} onSubmit={submit}/>
+    <OwnerForm inviteId={state.invite.id} onSubmit={submit} sidePanel={sidePanel}/>
   </div>
 }

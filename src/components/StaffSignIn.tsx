@@ -28,7 +28,7 @@ export default function StaffSignIn({ onSignIn, disabledReason }: StaffSignInPro
   return (
     <main className="staff-sign-in">
       <section className="staff-sign-in__card" aria-labelledby="sign-in-title">
-        <span className="staff-sign-in__brand">PAWPAIR</span>
+        <span className="staff-sign-in__brand">PawPals</span>
         <h1 id="sign-in-title">施設ログイン</h1>
         <p>施設のアカウントでログインしてください。</p>
         <form onSubmit={submit} aria-busy={busy}>

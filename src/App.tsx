@@ -1,19 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, setPersistence, browserSessionPersistence } from 'firebase/auth'
 import './App.css'
-import ObservationPanel, { type ObservationSubmission } from './components/ObservationPanel'
+import { type ObservationSubmission } from './components/ObservationPanel'
 import StaffSignIn from './components/StaffSignIn'
 import StaffSelection from './components/StaffSelection'
-import StaffInvitePanel from './components/StaffInvitePanel'
+import StaffApp from './pawpals/StaffApp'
 import OwnerRegistration from './OwnerRegistration'
 import { OwnerInviteError } from './pages/OwnerForm'
 import { createIntakeRepository, createOperationRepository, createPetRepository, createInviteRepository, createStaffProfileRepository, type IntakeRepository, type PetRepository, type OperationRepository, type MatchingSnapshot, type ObservationRecord, type StaffProfile } from './data'
 import { intakeToPetProfile } from './domain/intakeProfile'
 import { createOptimalRoomPlan } from './domain/matching'
-import type { MatchingResult, PairCompatibility, PetProfile as DomainPetProfile, RoomDefinition } from './domain/types'
+import type { MatchingResult, PetProfile as DomainPetProfile, RoomDefinition } from './domain/types'
 import { getFirebaseAuth } from './lib/firebase'
 import { parseAppRoute, generateOwnerInviteToken, createOwnerInviteUrl } from './lib/ownerInvite'
-import StaffDashboard, { type CompatibilityPair, type PetProfile as DashboardPetProfile, type RoomAssignment as DashboardRoomAssignment } from './pages/StaffDashboard'
 interface RuntimeServices { intakeRepository:IntakeRepository;petRepository:PetRepository;operationRepository:OperationRepository }
 type Runtime={ok:true;services:RuntimeServices}|{ok:false;error:string}
 function createRuntime():Runtime { try {return {ok:true,services:{intakeRepository:createIntakeRepository(),petRepository:createPetRepository(),operationRepository:createOperationRepository()}}}catch{return {ok:false,error:'施設データへの接続を準備できませんでした。'}} }
@@ -24,15 +23,6 @@ const ROOM_CATALOG = [
   { id: 'calm', name: 'カームルーム' },
 ] as const
 
-const FACTOR_META = [
-  ['energy', '活動量', 25],
-  ['size', '体格', 20],
-  ['playStyle', '遊び方', 20],
-  ['sociability', '社交性', 15],
-  ['emotionalBalance', '感情バランス', 10],
-  ['resourceSafety', '資源防衛リスク', 10],
-] as const
-
 type AppStatus = { tone: 'info' | 'success' | 'error'; message: string }
 
 function createRooms(petCount: number): RoomDefinition[] {
@@ -40,49 +30,6 @@ function createRooms(petCount: number): RoomDefinition[] {
   const roomCount = Math.min(ROOM_CATALOG.length, Math.max(1, Math.ceil(petCount / 2)))
   const capacity = Math.ceil(petCount / roomCount)
   return ROOM_CATALOG.slice(0, roomCount).map((room) => ({ ...room, capacity, minOccupancy: 1 }))
-}
-
-function pairReason(pair: PairCompatibility, petNameIndex: ReadonlyMap<string, string>): string {
-  const names = `${petNameIndex.get(pair.petAId) ?? pair.petAId}と${petNameIndex.get(pair.petBId) ?? pair.petBId}`
-  if (!pair.allowed) return `${names}は全項目を採点済みですが、記録された安全制約により同室候補から除外されています。`
-  const factors = FACTOR_META.map(([key, label, maxScore]) => ({
-    label,
-    ratio: pair.breakdown[key] / maxScore,
-  })).sort((left, right) => right.ratio - left.ratio)
-  const strengths = factors.slice(0, 2).map((factor) => factor.label).join('・')
-  const watch = factors.at(-1)?.label ?? '距離感'
-  return `${names}は${strengths}の一致度が高い組み合わせです。初回接触では${watch}をスタッフが観察してください。`
-}
-
-function toDashboardPairs(result: MatchingResult, pets: readonly DomainPetProfile[]): CompatibilityPair[] {
-  const petNameIndex = new Map(pets.map((pet) => [pet.id, pet.name]))
-  return result.pairResults.map((pair) => ({
-    id: pair.pairKey,
-    petAId: pair.petAId,
-    petBId: pair.petBId,
-    totalScore: pair.score,
-    factors: FACTOR_META.map(([key, label, maxScore]) => ({ label, score: pair.breakdown[key], maxScore })),
-    explanation: pairReason(pair, petNameIndex),
-    hardConstraints: pair.hardConstraints.map((constraint) => constraint.message),
-  }))
-}
-
-function toDashboardRooms(result: MatchingResult, rooms: readonly RoomDefinition[]): DashboardRoomAssignment[] {
-  if (result.status !== 'success') return []
-  const roomIndex = new Map(rooms.map((room) => [room.id, room]))
-  return result.rooms.map((assignment) => {
-    const room = roomIndex.get(assignment.roomId)
-    return {
-      id: assignment.roomId,
-      name: room?.name ?? assignment.roomId,
-      capacity: room?.capacity ?? assignment.petIds.length,
-      petIds: assignment.petIds,
-      averageScore: assignment.averageCompatibility ?? 100,
-      note: assignment.minimumCompatibility === null
-        ? '単独利用のためペアスコアはありません。'
-        : `室内の最低相性は ${assignment.minimumCompatibility}点です。`,
-    }
-  })
 }
 
 function createMatchingSnapshot(result: MatchingResult, pets: readonly DomainPetProfile[], status: MatchingSnapshot['status']): MatchingSnapshot {
@@ -109,10 +56,6 @@ function createMatchingSnapshot(result: MatchingResult, pets: readonly DomainPet
   }
 }
 
-function toDashboardPets(pets: readonly DomainPetProfile[]): DashboardPetProfile[] {
-  return pets.map((pet) => ({ id: pet.id, name: pet.name, breed: pet.breed, ageLabel: `${pet.ageYears}歳`, avatarUrl: pet.photoUrl }))
-}
-
 function firebaseConfigurationError(): string | null {
   if (!runtime.ok) return runtime.error
   const { intakeRepository, petRepository, operationRepository } = runtime.services
@@ -127,6 +70,9 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
   const [dataState, setDataState] = useState<'loading' | 'ready' | 'error'>('loading')
   const [isOptimizing, setIsOptimizing] = useState(false)
   const [isConfirmed, setIsConfirmed] = useState(false)
+  const [matchingHistory, setMatchingHistory] = useState<MatchingSnapshot[]>([])
+  const [observations, setObservations] = useState<ObservationRecord[]>([])
+  const [historyError, setHistoryError] = useState('')
   const [status, setStatus] = useState<AppStatus>(() => {
     const configurationError = firebaseConfigurationError()
     return configurationError
@@ -136,9 +82,16 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
 
   const rooms = useMemo(() => createRooms(pets.length), [pets.length])
   const matchingResult = useMemo(() => pets.length > 0 ? createOptimalRoomPlan(pets, rooms) : null, [pets, rooms])
-  const dashboardPets = useMemo(() => toDashboardPets(pets), [pets])
-  const dashboardPairs = useMemo(() => matchingResult ? toDashboardPairs(matchingResult, pets) : [], [matchingResult, pets])
-  const dashboardRooms = useMemo(() => matchingResult ? toDashboardRooms(matchingResult, rooms) : [], [matchingResult, rooms])
+  const loadHistory = useCallback(async () => {
+    if (!runtime.ok) return
+    const results = await Promise.allSettled([
+      runtime.services.operationRepository.listMatchings(),
+      runtime.services.operationRepository.listObservations(),
+    ])
+    if (results[0].status === 'fulfilled') setMatchingHistory(results[0].value)
+    if (results[1].status === 'fulfilled') setObservations(results[1].value)
+    setHistoryError(results.some(result => result.status === 'rejected') ? '保存履歴を取得できませんでした。登録情報を更新して再試行してください。' : '')
+  }, [])
 
   const refreshPromise = useRef<Promise<DomainPetProfile[]> | null>(null)
   const loadPets = useCallback(async () => {
@@ -157,7 +110,7 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
       const intakes = await runtime.services.intakeRepository.listRecent(25)
       await Promise.all(intakes.filter(intake => intake.status === 'ready' && intake.matchingProfile).map(intake =>
         runtime.services.petRepository.saveIfAbsent(intakeToPetProfile({ intakeId:intake.id, pet:intake.pet, matchingProfile:intake.matchingProfile }))))
-      const page = await runtime.services.petRepository.listPage(20)
+      const [page] = await Promise.all([runtime.services.petRepository.listPage(20), loadHistory()])
       setPets(page.pets)
       setDataState('ready')
       setIsConfirmed(false)
@@ -178,7 +131,7 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
     })()
     refreshPromise.current = pending
     try { return await pending } finally { refreshPromise.current = null }
-  }, [])
+  }, [loadHistory])
 
   useEffect(() => {
     if (firebaseConfigurationError() || !runtime.ok) {
@@ -205,7 +158,7 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
       setStatus({ tone: 'error', message: configurationError ?? 'サービスを初期化できませんでした。' })
       return
     }
-    if (!matchingResult) {
+    if (!matchingResult || (confirmation && matchingResult.status !== 'success')) {
       setStatus({ tone: 'error', message: '再計算するプロフィールがありません。' })
       return
     }
@@ -213,6 +166,7 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
     setIsConfirmed(false)
     try {
       await runtime.services.operationRepository.saveMatching(createMatchingSnapshot(matchingResult, pets, confirmation ? 'confirmed' : 'proposed'))
+      await loadHistory()
       setIsConfirmed(confirmation)
       setStatus({
         tone: 'success',
@@ -227,7 +181,7 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
     } finally {
       setIsOptimizing(false)
     }
-  }, [matchingResult, pets])
+  }, [matchingResult, pets, loadHistory])
 
   const applyObservation = useCallback(async (submission: ObservationSubmission) => {
     const configurationError = firebaseConfigurationError()
@@ -262,6 +216,7 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
       }
       const nextResult = createOptimalRoomPlan(nextPets, createRooms(nextPets.length))
       await runtime.services.operationRepository.saveMatching(createMatchingSnapshot(nextResult, nextPets, 'proposed'))
+      await loadHistory()
       setPets(nextPets)
       setStatus({
         tone: nextResult.status === 'success' ? 'success' : 'error',
@@ -276,7 +231,7 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
     } finally {
       setIsOptimizing(false)
     }
-  }, [pets])
+  }, [pets, loadHistory])
 
 
   const issueInvite = async () => {
@@ -297,13 +252,13 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: {staff:StaffProfile
       <span>{status.message}</span>
       <button type="button" disabled={dataState==='loading'} onClick={()=>void loadPets().catch(()=>undefined)}>登録情報を更新</button>
     </div>
-    {dataState==='ready' && matchingResult ? <>
-      <StaffDashboard key={staff.id} pets={dashboardPets} pairs={dashboardPairs} rooms={dashboardRooms} isOptimizing={isOptimizing} isConfirmed={isConfirmed} onIssueInvite={issueInvite} issuedByLabel={staff.name} onRunOptimization={()=>void saveCurrentMatching(false)} onConfirm={()=>void saveCurrentMatching(true)} />
-      <div className="app-observation-shell"><ObservationPanel pets={dashboardPets} isSubmitting={isOptimizing} onSubmit={applyObservation}/></div>
-    </> : dataState==='ready' ? <div className="app-empty-facility">
-      <section className="app-state-panel"><h1>わんちゃんの登録を受け付けましょう</h1><p>登録URLを飼い主さまへお渡しください。登録後に「登録情報を更新」で反映できます。</p></section>
-      <StaffInvitePanel key={staff.id} onIssue={issueInvite} issuedByLabel={staff.name}/>
-    </div> : <section className="app-state-panel" role="status"><h1>{dataState==='loading'?'登録情報を読み込んでいます':'登録情報を読み込めませんでした'}</h1><p>{dataState==='loading'?'そのままお待ちください。':'接続を確認し、「登録情報を更新」を押してください。'}</p></section>}
+    {historyError && <p className="app-status app-status--error" role="alert">{historyError}</p>}
+    {dataState === 'ready' ? <StaffApp pets={pets} matchingResult={matchingResult} rooms={rooms}
+      matchingHistory={matchingHistory} observations={observations} staffName={staff.name}
+      busy={isOptimizing} confirmed={isConfirmed} onIssueInvite={issueInvite}
+      onOptimize={() => saveCurrentMatching(false)} onConfirm={() => saveCurrentMatching(true)} onObserve={applyObservation} />
+      : <section className="app-state-panel" role="status"><h1>{dataState === 'loading' ? '登録情報を読み込んでいます' : '登録情報を読み込めませんでした'}</h1><p>{dataState === 'loading' ? 'そのままお待ちください。' : '接続を確認し、「登録情報を更新」を押してください。'}</p></section>}
+
   </div>
 }
 

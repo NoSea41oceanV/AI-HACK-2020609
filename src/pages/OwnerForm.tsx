@@ -1,4 +1,4 @@
-import { ChangeEvent, FormEvent, useEffect, useState } from 'react'
+import { ChangeEvent, FormEvent, ReactNode, useEffect, useState } from 'react'
 import { AI_MEDIA_LIMITS, AI_MEDIA_TYPES, validateOwnerAnalysisMedia } from '../lib/workerClient'
 import './OwnerForm.css'
 import {
@@ -35,6 +35,7 @@ export interface OwnerRegistrationPayload {
 export interface OwnerFormProps {
   onSubmit: (payload: OwnerRegistrationPayload) => void | Promise<void>
   inviteId: string
+  sidePanel?: ReactNode
 }
 
 type MediaKind = 'photo' | 'video'
@@ -76,7 +77,7 @@ function FileIcon({ kind }: { kind: MediaKind }) {
   )
 }
 
-export default function OwnerForm({ onSubmit, inviteId }: OwnerFormProps) {
+export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormProps) {
   const [photo, setPhoto] = useState<MediaSelection>(EMPTY_MEDIA)
   const [video, setVideo] = useState<MediaSelection>(EMPTY_MEDIA)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -227,12 +228,15 @@ export default function OwnerForm({ onSubmit, inviteId }: OwnerFormProps) {
     return (
       <main className="owner-form-page owner-form-page--complete">
         <OwnerHeader />
-        <section className="owner-complete" role="status" aria-labelledby="owner-complete-title">
-          <span className="owner-complete-mark" aria-hidden="true">✓</span>
-          <h1 id="owner-complete-title">登録を受け付けました</h1>
-          <p>ご入力ありがとうございました。お預かりした情報は施設スタッフが確認します。</p>
-          <small>この画面を閉じていただけます。</small>
-        </section>
+        <div className="owner-workspace owner-workspace--complete">
+          <section className="owner-complete" role="status" aria-labelledby="owner-complete-title">
+            <span className="owner-complete-mark" aria-hidden="true">✓</span>
+            <h1 id="owner-complete-title">登録を受け付けました</h1>
+            <p>ご入力ありがとうございました。お預かりした情報は施設スタッフが確認します。</p>
+            <small>この画面を閉じていただけます。</small>
+          </section>
+          {sidePanel}
+        </div>
       </main>
     )
   }
@@ -243,14 +247,17 @@ export default function OwnerForm({ onSubmit, inviteId }: OwnerFormProps) {
 
       <section className="owner-form-intro" aria-labelledby="owner-form-title">
         <div>
-          <h1 id="owner-form-title">お預かりする<br />わんちゃんについて</h1>
-          <p>安全で楽しい時間を過ごせるよう、普段の様子を教えてください。施設から届いた専用フォームです。1つのURLで1頭を登録できます。</p>
+          <span className="owner-eyebrow">飼い主さんの登録</span>
+          <h1 id="owner-form-title">愛犬プロフィール登録</h1>
+          <p>安全で楽しい時間を過ごせるよう、普段の様子を教えてください。回答をもとにAIが行動傾向を整理します。</p>
         </div>
+        <div className="owner-progress-pill"><b>6</b>つの普段の様子</div>
       </section>
 
+      <div className="owner-workspace">
       <form className="owner-form" onSubmit={handleSubmit} noValidate>
         <fieldset>
-          <legend><span>01</span>飼い主さまの情報</legend>
+          <legend><span>A</span><span><b>飼い主さまの情報</b><small>施設からの連絡に使う情報</small></span></legend>
           <div className="owner-form-grid">
             <label className="owner-field">
               <span>お名前 <em>必須</em></span>
@@ -264,7 +271,7 @@ export default function OwnerForm({ onSubmit, inviteId }: OwnerFormProps) {
         </fieldset>
 
         <fieldset>
-          <legend><span>02</span>わんちゃんの基本情報</legend>
+          <legend><span>B</span><span><b>基本属性</b><small>相性判定に使う基本情報</small></span></legend>
           <div className="owner-form-grid">
             <label className="owner-field owner-field-wide">
               <span>お名前 <em>必須</em></span>
@@ -295,7 +302,7 @@ export default function OwnerForm({ onSubmit, inviteId }: OwnerFormProps) {
         </fieldset>
 
         <fieldset>
-          <legend><span>03</span>性格と普段の過ごし方</legend>
+          <legend><span>C</span><span><b>いつもの様子</b><small>専門用語を使わず、普段の場面について教えてください</small></span></legend>
           <div className="owner-form-grid">
             <div className="owner-field owner-field-wide owner-personality-section">
               <div className="owner-personality-heading">
@@ -355,7 +362,7 @@ export default function OwnerForm({ onSubmit, inviteId }: OwnerFormProps) {
         </fieldset>
 
         <fieldset>
-          <legend><span>04</span>写真・動画</legend>
+          <legend><span>D</span><span><b>写真・動画</b><small>任意の補助資料</small></span></legend>
           <p className="owner-fieldset-help">表情や動きが分かるファイルがあると、性格傾向の確認に役立ちます。音声ファイルは使用しません。写真と動画は合計20MBまでです。</p>
           <div className="owner-media-grid">
             <MediaInput
@@ -390,6 +397,8 @@ export default function OwnerForm({ onSubmit, inviteId }: OwnerFormProps) {
           </button>
         </div>
       </form>
+      {sidePanel}
+      </div>
     </main>
   )
 }
@@ -397,9 +406,9 @@ export default function OwnerForm({ onSubmit, inviteId }: OwnerFormProps) {
 function OwnerHeader() {
   return (
     <header className="owner-form-header">
-      <div className="owner-form-brand" aria-label="PawPair">
-        <span className="owner-form-brand-mark" aria-hidden="true">P</span>
-        <span>PAWPAIR</span>
+      <div className="owner-form-brand" aria-label="PawPals">
+        <span>PawPals</span>
+        <small>AIと一緒に、今日のわんこたちを見守る。</small>
       </div>
       <p>わんちゃん情報の登録</p>
     </header>

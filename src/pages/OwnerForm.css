@@ -165,7 +165,7 @@
   font-weight: 900;
 }
 
-.owner-form legend span {
+.owner-form legend > span:first-child {
   display: grid;
   width: 30px;
   height: 30px;
@@ -696,4 +696,322 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* PawPals owner registration layout. Kept owner-scoped so staff screens can share their own shell. */
+.owner-form-page {
+  --owner-ink: #38433b;
+  --owner-muted: #7e857d;
+  --owner-sage-50: #edf3ec;
+  --owner-sage-100: #e3ebe1;
+  --owner-sage-300: #cbd9c9;
+  --owner-sage-600: #5f8068;
+  --owner-sage-700: #385846;
+  --owner-coral: #c87469;
+  --owner-coral-dark: #a55d55;
+  --owner-border: #ddd6c7;
+  --owner-shadow: 0 10px 30px rgba(54, 70, 57, .08);
+  background: linear-gradient(180deg, #f8f3e8 0%, #f4efe4 100%);
+}
+
+.owner-form-header {
+  width: min(100% - 48px, 1312px);
+  min-height: 88px;
+  border-bottom-color: var(--owner-border);
+}
+
+.owner-form-brand {
+  display: grid;
+  gap: 0;
+  color: var(--owner-sage-700);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  line-height: 1;
+}
+
+.owner-form-brand small {
+  margin-top: 5px;
+  color: var(--owner-muted);
+  font-family: "Noto Sans JP", "Yu Gothic", sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .08em;
+}
+
+.owner-form-intro {
+  display: flex;
+  width: min(100% - 48px, 1312px);
+  margin: 30px auto 18px;
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.owner-form-intro > div:first-child {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.owner-eyebrow {
+  color: var(--owner-sage-600);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.owner-form-intro h1 {
+  margin: 4px 0 5px;
+  color: var(--owner-sage-700);
+  font-family: Georgia, "Yu Mincho", serif;
+  font-size: 30px;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.owner-form-intro > div > p {
+  max-width: 620px;
+  font-size: 12px;
+}
+
+.owner-progress-pill {
+  padding: 8px 12px;
+  color: var(--owner-sage-700);
+  background: var(--owner-sage-50);
+  border: 1px solid #d5ddcf;
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.owner-progress-pill b { margin-right: 3px; }
+
+.owner-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.18fr) minmax(300px, .82fr);
+  gap: 16px;
+  width: min(100% - 48px, 1312px);
+  margin: 0 auto;
+  padding-bottom: 72px;
+  align-items: start;
+}
+
+.owner-form {
+  display: grid;
+  width: auto;
+  margin: 0;
+  padding: 18px;
+  gap: 18px;
+  background: #fffdf8;
+  border: 1px solid var(--owner-border);
+  border-radius: 20px;
+  box-shadow: var(--owner-shadow);
+}
+
+.owner-form fieldset {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.owner-form legend {
+  width: 100%;
+  margin: 0 0 16px;
+  padding: 0 0 10px;
+  gap: 10px;
+  border-bottom: 1px solid #eee8dc;
+  font-size: 15px;
+}
+
+.owner-form legend > span:first-child {
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
+  color: var(--owner-sage-600);
+  background: #e7eee5;
+  font-size: 12px;
+}
+
+.owner-form legend > span:last-child {
+  display: grid;
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  height: auto;
+  gap: 1px;
+  place-items: initial;
+  color: inherit;
+  background: transparent;
+  border-radius: 0;
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: normal;
+}
+
+.owner-form legend b {
+  color: var(--owner-sage-700);
+  font-size: 15px;
+}
+
+.owner-form legend small {
+  color: var(--owner-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.owner-form-grid { gap: 10px; }
+.owner-field { gap: 5px; color: var(--owner-muted); font-size: 10px; }
+.owner-field input,
+.owner-field select,
+.owner-field textarea {
+  min-height: 42px;
+  padding: 10px;
+  color: var(--owner-ink);
+  background: #fffefa;
+  border-color: #e0dbcf;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.owner-personality-heading {
+  padding: 12px;
+  border-left: 0;
+  background: #f4f0e7;
+}
+
+.owner-personality-heading strong { font-size: 13px; }
+.owner-personality-grid { gap: 10px; }
+.owner-personality-question {
+  padding: 12px;
+  background: #fffefa;
+  border-color: #e8e1d5;
+  border-radius: 10px;
+}
+.owner-personality-question > label:first-child { min-height: 2.8em; font-size: 11px; }
+.owner-fieldset-help { margin: -6px 0 14px; font-size: 11px; }
+.owner-media-drop,
+.owner-media-preview { min-height: 180px; }
+.owner-media-preview img,
+.owner-media-preview video { height: 126px; }
+
+.owner-form-submit-area {
+  padding: 20px;
+  background: #f4f0e7;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.owner-submit-button {
+  min-height: 48px;
+  background: var(--owner-sage-600);
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.owner-analysis-card {
+  position: sticky;
+  top: 16px;
+  min-width: 0;
+  min-height: 600px;
+  padding: 18px;
+  background: #fffdf8;
+  border: 1px solid var(--owner-border);
+  border-radius: 20px;
+  box-shadow: var(--owner-shadow);
+}
+
+.owner-analysis-card__head {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.owner-analysis-card__head h2 {
+  margin: 3px 0 0;
+  color: var(--owner-sage-700);
+  font-size: 15px;
+}
+
+.owner-analysis-status {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  color: var(--owner-muted);
+  border: 1px solid var(--owner-border);
+  border-radius: 999px;
+  font-size: 9px;
+}
+.owner-analysis-status--active { color: var(--owner-sage-700); background: var(--owner-sage-50); border-color: var(--owner-sage-300); }
+.owner-analysis-status--error { color: var(--owner-coral-dark); background: #fff4f1; border-color: #e5c4bd; }
+
+.owner-analysis-card .processing-status {
+  position: static;
+  margin: 18px 0 0;
+  padding: 12px;
+  background: #f7f3ea;
+  border-color: #e6dfd1;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.owner-analysis-card .processing-status__heading { align-items: flex-start; flex-direction: column; gap: 2px; }
+.owner-analysis-card .processing-status ol { grid-template-columns: 1fr; }
+
+.owner-analysis-empty {
+  display: grid;
+  min-height: 430px;
+  padding: 70px 24px;
+  place-content: center;
+  color: var(--owner-muted);
+  text-align: center;
+}
+.owner-analysis-empty > span { font-size: 42px; }
+.owner-analysis-empty p { margin: 12px auto 8px; max-width: 300px; font-size: 12px; }
+.owner-analysis-empty small { max-width: 300px; font-size: 10px; }
+
+.owner-analysis-result {
+  margin-top: 16px;
+  padding: 16px;
+  color: var(--owner-ink);
+  background: #eef5ea;
+  border-left: 3px solid var(--owner-sage-600);
+  border-radius: 11px;
+  font-size: 11px;
+}
+.owner-analysis-result > strong { color: var(--owner-sage-700); font-size: 12px; }
+.owner-analysis-result p { margin: 7px 0; }
+.owner-analysis-result ul { margin: 8px 0; padding-left: 18px; }
+.owner-analysis-result li + li { margin-top: 5px; }
+.owner-analysis-result small { color: var(--owner-muted); }
+
+.owner-workspace--complete {
+  margin-block: auto;
+  padding-block: 48px;
+  align-items: stretch;
+}
+.owner-workspace--complete .owner-complete { width: auto; margin: 0; }
+.owner-workspace--complete .owner-analysis-card { position: static; min-height: 0; }
+
+@media (max-width: 850px) {
+  .owner-workspace { grid-template-columns: 1fr; }
+  .owner-analysis-card { position: static; min-height: 300px; }
+  .owner-analysis-empty { min-height: 220px; padding: 48px 20px; }
+}
+
+@media (max-width: 640px) {
+  .owner-form-header,
+  .owner-form-intro,
+  .owner-workspace { width: min(100% - 28px, 760px); }
+  .owner-form-intro { align-items: flex-start; margin-top: 24px; }
+  .owner-form-intro h1 { font-size: 27px; }
+  .owner-progress-pill { align-self: flex-start; }
+  .owner-form { padding: 14px; }
+  .owner-form fieldset { padding: 0; }
+  .owner-form legend { font-size: 15px; }
 }
