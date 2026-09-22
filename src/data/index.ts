@@ -1,5 +1,6 @@
-import { getFirebaseDb } from "../lib/firebase";
+import { getFirebaseAuth, getFirebaseDb } from "../lib/firebase";
 import { FirestoreIntakeRepository } from "./firestoreIntakeRepository";
+import { FirestoreInviteRepository, FirestoreStaffProfileRepository } from "./firestoreInviteRepository";
 import { FirestoreOperationRepository } from "./firestoreOperationRepository";
 import { FirestorePetRepository } from "./firestorePetRepository";
 import { LocalIntakeRepository } from "./localIntakeRepository";
@@ -9,9 +10,11 @@ import type { IntakeRepository } from "./intakeRepository";
 
 export * from "./demoData";
 export * from "./firestoreIntakeRepository";
+export * from "./firestoreInviteRepository";
 export * from "./firestoreOperationRepository";
 export * from "./firestorePetRepository";
 export * from "./intakeRepository";
+export * from "./inviteRepository";
 export * from "./localIntakeRepository";
 export * from "./localOperationRepository";
 export * from "./localPetRepository";
@@ -20,15 +23,30 @@ export * from "./petRepository";
 
 export const createPetRepository = () => {
   const db = getFirebaseDb();
-  return db ? new FirestorePetRepository(db) : new LocalPetRepository();
+  const auth = getFirebaseAuth();
+  return db && auth ? new FirestorePetRepository(db, auth) : new LocalPetRepository();
 };
 
 export const createIntakeRepository = (): IntakeRepository => {
   const db = getFirebaseDb();
-  return db ? new FirestoreIntakeRepository(db) : new LocalIntakeRepository();
+  const auth = getFirebaseAuth();
+  return db && auth ? new FirestoreIntakeRepository(db, auth) : new LocalIntakeRepository();
+};
+
+export const createInviteRepository = () => {
+  const db = getFirebaseDb();
+  const auth = getFirebaseAuth();
+  return db && auth ? new FirestoreInviteRepository(db, auth) : null;
+};
+
+export const createStaffProfileRepository = () => {
+  const db = getFirebaseDb();
+  const auth = getFirebaseAuth();
+  return db && auth ? new FirestoreStaffProfileRepository(db, auth) : null;
 };
 
 export const createOperationRepository = () => {
   const db = getFirebaseDb();
-  return db ? new FirestoreOperationRepository(db) : new LocalOperationRepository();
+  const auth = getFirebaseAuth();
+  return db && auth ? new FirestoreOperationRepository(db, auth) : new LocalOperationRepository();
 };
