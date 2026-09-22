@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ObservationSubmission } from '../components/ObservationPanel'
 import type { MatchingSnapshot, ObservationRecord } from '../data'
+import type { DailyOperationDay, DailyOperationPlan, FacilityRoomSettings, OperationAuditEvent } from '../domain/dailyOperations'
 import type { MatchingResult, PetProfile as DomainPetProfile, RoomDefinition } from '../domain/types'
 import AgentScreen from './AgentScreen'
 import CompatibilityScreen from './CompatibilityScreen'
@@ -17,11 +18,18 @@ export interface StaffAppProps {
   rooms: readonly RoomDefinition[]
   matchingHistory: readonly MatchingSnapshot[]
   observations: readonly ObservationRecord[]
+  operationDate: string
+  dailyOperation: DailyOperationDay | null
+  roomSettings: FacilityRoomSettings | null
+  currentPlan: DailyOperationPlan | null
+  auditEntries: readonly OperationAuditEvent[]
   staffName: string
   busy: boolean
-  confirmed: boolean
+  onOperationDateChange: (date: string) => void
+  onSaveDailyPets: (petIds: string[]) => Promise<void>
+  onSaveRooms: (rooms: RoomDefinition[]) => Promise<void>
   onOptimize: () => void | Promise<void>
-  onConfirm: () => void | Promise<void>
+  onDecidePlan: (decision: 'confirmed' | 'rejected', reason: string) => Promise<void>
   onIssueInvite: () => Promise<string>
   onObserve: (submission: ObservationSubmission) => Promise<void>
 }
@@ -40,6 +48,8 @@ const NAV_ITEMS: ReadonlyArray<{ id: ScreenId; label: string }> = [
 export default function StaffApp(props: StaffAppProps) {
   const [screen, setScreen] = useState<ScreenId>('today')
   const [selectedPetId, setSelectedPetId] = useState('')
+  const dailyPetIds = new Set(props.dailyOperation?.date === props.operationDate ? props.dailyOperation.selectedPetIds : [])
+  const dailyPets = props.pets.filter((pet) => dailyPetIds.has(pet.id))
   const processingLabel = props.busy
     ? '計算・保存中'
     : props.matchingResult
@@ -87,7 +97,7 @@ export default function StaffApp(props: StaffAppProps) {
         ) : null}
         {screen === 'match' ? (
           <CompatibilityScreen
-            pets={props.pets}
+            pets={dailyPets}
             matchingResult={props.matchingResult}
             selectedPetId={selectedPetId}
             onSelectPet={setSelectedPetId}
@@ -95,14 +105,14 @@ export default function StaffApp(props: StaffAppProps) {
         ) : null}
         {screen === 'map' ? (
           <FriendMapScreen
-            pets={props.pets}
+            pets={dailyPets}
             matchingResult={props.matchingResult}
             rooms={props.rooms}
             selectedPetId={selectedPetId}
             onSelectPet={setSelectedPetId}
           />
         ) : null}
-        {screen === 'agent' ? <AgentScreen {...props} /> : null}
+        {screen === 'agent' ? <AgentScreen {...props} pets={dailyPets} /> : null}
       </main>
     </div>
   )

@@ -1,12 +1,7 @@
 import { ChangeEvent, FormEvent, ReactNode, useEffect, useState } from 'react'
 import { AI_MEDIA_LIMITS, AI_MEDIA_TYPES, validateOwnerAnalysisMedia } from '../lib/workerClient'
 import './OwnerForm.css'
-import {
-  PERSONALITY_QUESTIONS,
-  serializePersonalityAnswers,
-  type PersonalityAnswers,
-  type PersonalityQuestionKey,
-} from './personalityOptions'
+import { STRUCTURED_INTAKE_LABELS, STRUCTURED_INTAKE_OPTIONS, STRUCTURED_INTAKE_TEXT_KEYS, isStructuredIntakeAnswers, type StructuredIntakeAnswers } from '../domain/structuredIntake'
 
 export type PetSex = 'male' | 'female' | 'unknown'
 
@@ -25,7 +20,9 @@ export interface OwnerRegistrationPayload {
     personality: string
     playStyle: string
     concerns: string
+    structured: StructuredIntakeAnswers
   }
+  consent: { version: '2026-09'; accepted: true; acceptedAt: string }
   media: {
     photo: File | null
     video: File | null
@@ -52,6 +49,51 @@ const PHOTO_TYPES: readonly string[] = AI_MEDIA_TYPES.image
 const VIDEO_TYPES: readonly string[] = AI_MEDIA_TYPES.video
 const MAX_PHOTO_BYTES = AI_MEDIA_LIMITS.imageBytes
 const MAX_VIDEO_BYTES = AI_MEDIA_LIMITS.videoBytes
+
+const BASIC_KEYS = ['neuter', 'heat'] as const
+const HEALTH_KEYS = ['mixedVaccine', 'rabiesVaccine', 'fleaTickPrevention', 'foodAllergy', 'medicalHistory', 'sensoryJointConcerns'] as const
+const SOCIAL_KEYS = ['multiDogExperience', 'facilityExperience', 'puppySocialization', 'troubleHistory'] as const
+const BEHAVIOR_KEYS = ['firstMeeting', 'playPreference', 'resourceReaction', 'excitement', 'recovery', 'stressResponse'] as const
+const STRUCTURED_KEYS = [...BASIC_KEYS, ...HEALTH_KEYS, ...SOCIAL_KEYS, ...BEHAVIOR_KEYS]
+
+export function createOwnerRegistrationPayload(values: FormData, inviteId: string, media: OwnerRegistrationPayload['media']): OwnerRegistrationPayload {
+  const structured = Object.fromEntries(STRUCTURED_KEYS.map((key) => [key, String(values.get(key) ?? '').trim()]))
+  if (!isStructuredIntakeAnswers(structured) || STRUCTURED_INTAKE_TEXT_KEYS.some((key) => !structured[key])) throw new Error('健康・社会化歴・いつもの様子の必須項目を確認してください。')
+  if (values.get('consent') !== 'accepted') throw new Error('情報の利用について確認し、同意してください。')
+  return {
+    inviteId,
+    owner: {
+      name: String(values.get('ownerName') ?? '').trim(),
+      contact: String(values.get('contact') ?? '').trim(),
+    },
+    pet: {
+      name: String(values.get('petName') ?? '').trim(),
+      breed: String(values.get('breed') ?? '').trim(),
+      age: Number(values.get('age')),
+      weightKg: Number(values.get('weightKg')),
+      sex: String(values.get('sex')) as PetSex,
+      personality: BEHAVIOR_KEYS.map((key) => `${STRUCTURED_INTAKE_LABELS[key]}：${structured[key]}`).join('\n'),
+      playStyle: structured.playPreference,
+      concerns: String(values.get('concerns') ?? '').trim(),
+      structured,
+    },
+    consent: { version: '2026-09', accepted: true, acceptedAt: new Date().toISOString() },
+    media,
+  }
+}
+
+function StructuredFields({ fields, disabled }: { fields: readonly (keyof StructuredIntakeAnswers)[]; disabled: boolean }) {
+  return <>{fields.map((key) => {
+    const options = STRUCTURED_INTAKE_OPTIONS[key as keyof typeof STRUCTURED_INTAKE_OPTIONS] as readonly string[] | undefined
+    return <label className={`owner-field${options ? '' : ' owner-field-wide'}`} key={key}>
+      <span>{STRUCTURED_INTAKE_LABELS[key]} <em>必須</em></span>
+      {options ? <select name={key} defaultValue="" required disabled={disabled}>
+        <option value="" disabled>選択してください</option>
+        {options.map((option) => <option value={option} key={option}>{option}</option>)}
+      </select> : <textarea name={key} required maxLength={1000} rows={2} disabled={disabled} placeholder={key === 'troubleHistory' ? '相手のサイズ・状況・程度・原因など。なければ「なし」' : 'なければ「なし」。分からない場合は「不明」'} />}
+    </label>
+  })}</>
+}
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
@@ -83,9 +125,6 @@ export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormPr
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [submitted, setSubmitted] = useState(false)
-  const [personalityAnswers, setPersonalityAnswers] = useState<PersonalityAnswers>({})
-  const [personalityOtherDetails, setPersonalityOtherDetails] = useState<PersonalityAnswers>({})
-  const [personalityErrors, setPersonalityErrors] = useState<PersonalityAnswers>({})
 
   useEffect(
     () => () => {
@@ -139,68 +178,21 @@ export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormPr
     else setVideo(EMPTY_MEDIA)
   }
 
-  const updatePersonalityAnswer = (key: PersonalityQuestionKey, value: string) => {
-    const nextAnswers = { ...personalityAnswers, [key]: value }
-    setPersonalityAnswers(nextAnswers)
-    if (value !== 'その他') {
-      setPersonalityOtherDetails((current) => ({ ...current, [key]: '' }))
-    }
-    if (personalityErrors[key]) {
-      const nextDetails = value === 'その他' ? personalityOtherDetails : { ...personalityOtherDetails, [key]: '' }
-      setPersonalityErrors(serializePersonalityAnswers(nextAnswers, nextDetails).errors)
-    }
-  }
-
-  const updatePersonalityOtherDetail = (key: PersonalityQuestionKey, value: string) => {
-    const nextDetails = { ...personalityOtherDetails, [key]: value }
-    setPersonalityOtherDetails(nextDetails)
-    if (personalityErrors[key]) {
-      setPersonalityErrors(serializePersonalityAnswers(personalityAnswers, nextDetails).errors)
-    }
-  }
-
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (photo.error || video.error) return
 
     const form = event.currentTarget
-    const serializedPersonality = serializePersonalityAnswers(personalityAnswers, personalityOtherDetails)
-    if (Object.keys(serializedPersonality.errors).length > 0) {
-      setPersonalityErrors(serializedPersonality.errors)
-      const firstInvalidKey = PERSONALITY_QUESTIONS.find(({ key }) => serializedPersonality.errors[key])?.key
-      if (firstInvalidKey) {
-        const suffix = personalityAnswers[firstInvalidKey] === 'その他' ? '-other' : ''
-        document.getElementById(`owner-personality-${firstInvalidKey}${suffix}`)?.focus()
-      }
-      return
-    }
     if (!form.reportValidity()) return
     const values = new FormData(form)
 
+    let payload: OwnerRegistrationPayload
     try {
       validateOwnerAnalysisMedia({ photo: photo.file ?? undefined, video: video.file ?? undefined })
+      payload = createOwnerRegistrationPayload(values, inviteId, { photo: photo.file, video: video.file })
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : '写真・動画のサイズを確認してください。')
+      setSubmitError(error instanceof Error ? error.message : '入力内容と写真・動画のサイズを確認してください。')
       return
-    }
-
-    const payload: OwnerRegistrationPayload = {
-      inviteId,
-      owner: {
-        name: String(values.get('ownerName') ?? '').trim(),
-        contact: String(values.get('contact') ?? '').trim(),
-      },
-      pet: {
-        name: String(values.get('petName') ?? '').trim(),
-        breed: String(values.get('breed') ?? '').trim(),
-        age: Number(values.get('age')),
-        weightKg: Number(values.get('weightKg')),
-        sex: String(values.get('sex')) as PetSex,
-        personality: serializedPersonality.value,
-        playStyle: serializedPersonality.playStyle,
-        concerns: String(values.get('concerns') ?? '').trim(),
-      },
-      media: { photo: photo.file, video: video.file },
     }
 
     setSubmitError('')
@@ -213,9 +205,6 @@ export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormPr
       if (video.previewUrl) URL.revokeObjectURL(video.previewUrl)
       setPhoto(EMPTY_MEDIA)
       setVideo(EMPTY_MEDIA)
-      setPersonalityAnswers({})
-      setPersonalityOtherDetails({})
-      setPersonalityErrors({})
       setSubmitted(true)
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : '送信できませんでした。時間をおいてお試しください。')
@@ -251,12 +240,12 @@ export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormPr
           <h1 id="owner-form-title">愛犬プロフィール登録</h1>
           <p>安全で楽しい時間を過ごせるよう、普段の様子を教えてください。回答をもとにAIが行動傾向を整理します。</p>
         </div>
-        <div className="owner-progress-pill"><b>6</b>つの普段の様子</div>
+        <div className="owner-progress-pill"><b>18</b>項目の健康・行動情報</div>
       </section>
 
       <div className="owner-workspace">
       <form className="owner-form" onSubmit={handleSubmit} noValidate>
-        <fieldset>
+        <fieldset disabled={isSubmitting}>
           <legend><span>A</span><span><b>飼い主さまの情報</b><small>施設からの連絡に使う情報</small></span></legend>
           <div className="owner-form-grid">
             <label className="owner-field">
@@ -270,7 +259,7 @@ export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormPr
           </div>
         </fieldset>
 
-        <fieldset>
+        <fieldset disabled={isSubmitting}>
           <legend><span>B</span><span><b>基本属性</b><small>相性判定に使う基本情報</small></span></legend>
           <div className="owner-form-grid">
             <label className="owner-field owner-field-wide">
@@ -298,71 +287,31 @@ export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormPr
                 <option value="unknown">不明・回答しない</option>
               </select>
             </label>
+            <StructuredFields fields={BASIC_KEYS} disabled={isSubmitting} />
           </div>
         </fieldset>
 
-        <fieldset>
-          <legend><span>C</span><span><b>いつもの様子</b><small>専門用語を使わず、普段の場面について教えてください</small></span></legend>
-          <div className="owner-form-grid">
-            <div className="owner-field owner-field-wide owner-personality-section">
-              <div className="owner-personality-heading">
-                <strong>いつもの様子 <em>必須</em></strong>
-                <span>専門用語は使わず、普段の場面について教えてください。</span>
-              </div>
-              <div className="owner-personality-grid">
-                {PERSONALITY_QUESTIONS.map(({ key, label, options }) => {
-                  const answer = personalityAnswers[key] ?? ''
-                  const error = personalityErrors[key]
-                  const errorId = `owner-personality-${key}-error`
-                  return (
-                    <div className="owner-personality-question" key={key}>
-                      <label htmlFor={`owner-personality-${key}`}>{label}</label>
-                      <select
-                        id={`owner-personality-${key}`}
-                        value={answer}
-                        required
-                        disabled={isSubmitting}
-                        aria-invalid={error ? 'true' : undefined}
-                        aria-describedby={error ? errorId : undefined}
-                        onChange={(event) => updatePersonalityAnswer(key, event.target.value)}
-                      >
-                        <option value="" disabled>選択してください</option>
-                        {options.map((option) => <option value={option} key={option}>{option}</option>)}
-                        <option value="わからない">わからない</option>
-                        <option value="その他">その他</option>
-                      </select>
-                      {answer === 'その他' ? (
-                        <label className="owner-personality-other">
-                          <span>{label}の補足 <em>必須</em></span>
-                          <textarea
-                            id={`owner-personality-${key}-other`}
-                            value={personalityOtherDetails[key] ?? ''}
-                            required
-                            maxLength={80}
-                            rows={2}
-                            disabled={isSubmitting}
-                            aria-invalid={error ? 'true' : undefined}
-                            aria-describedby={error ? errorId : undefined}
-                            placeholder="普段の様子を短く入力してください"
-                            onChange={(event) => updatePersonalityOtherDetail(key, event.target.value)}
-                          />
-                        </label>
-                      ) : null}
-                      {error ? <p id={errorId} className="owner-personality-error" role="alert">{error}</p> : null}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-            <label className="owner-field owner-field-wide">
-              <span>苦手なこと・注意点</span>
-              <textarea name="concerns" maxLength={500} rows={4} placeholder="苦手な音、触られるのが苦手な場所、興奮しやすい状況など" />
-            </label>
-          </div>
+        <fieldset disabled={isSubmitting}>
+          <legend><span>C</span><span><b>健康・管理情報</b><small>安全確認に必要な情報</small></span></legend>
+          <div className="owner-form-grid"><StructuredFields fields={HEALTH_KEYS} disabled={isSubmitting} /></div>
         </fieldset>
 
-        <fieldset>
-          <legend><span>D</span><span><b>写真・動画</b><small>任意の補助資料</small></span></legend>
+        <fieldset disabled={isSubmitting}>
+          <legend><span>D</span><span><b>社会化歴</b><small>他犬との過去の経験</small></span></legend>
+          <div className="owner-form-grid"><StructuredFields fields={SOCIAL_KEYS} disabled={isSubmitting} /></div>
+        </fieldset>
+
+        <fieldset disabled={isSubmitting}>
+          <legend><span>E</span><span><b>いつもの様子</b><small>専門用語は使わず、普段の場面について答えてください</small></span></legend>
+          <div className="owner-form-grid owner-behavior-grid"><StructuredFields fields={BEHAVIOR_KEYS} disabled={isSubmitting} /></div>
+          <label className="owner-field owner-free-text">
+            <span>うちの子の性格・苦手なこと・注意点（自由記入）</span>
+            <textarea name="concerns" maxLength={1000} rows={4} placeholder="普段の性格、苦手な音、触られるのが苦手な場所、興奮しやすい状況など" />
+          </label>
+        </fieldset>
+
+        <fieldset disabled={isSubmitting}>
+          <legend><span>F</span><span><b>写真・動画</b><small>任意の補助資料</small></span></legend>
           <p className="owner-fieldset-help">表情や動きが分かるファイルがあると、性格傾向の確認に役立ちます。音声ファイルは使用しません。写真と動画は合計20MBまでです。</p>
           <div className="owner-media-grid">
             <MediaInput
@@ -389,7 +338,15 @@ export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormPr
         </fieldset>
 
         <div className="owner-form-submit-area">
-          <p>入力内容は施設スタッフがマッチングの参考情報として確認します。</p>
+          <div className="owner-consent-notice" id="owner-consent-description">
+            <strong>情報の利用について</strong>
+            <p>健康・管理情報、社会化歴、行動の回答と任意の写真をAIに送り、行動傾向や相性の参考情報を整理します。氏名・連絡先はAIに送りません。自由記入や写真にも氏名・連絡先を含めないでください。</p>
+            <p>動画は任意です。音声を使わず抽出した静止画だけを一時処理し、動画本体は保存しません。入力内容と分析結果は施設スタッフが確認します。</p>
+          </div>
+          <label className="owner-consent-checkbox">
+            <input name="consent" type="checkbox" value="accepted" required disabled={isSubmitting} aria-describedby="owner-consent-description" />
+            <span>上記の情報の利用に同意します <em>必須</em></span>
+          </label>
           {submitError && <p className="owner-submit-message owner-submit-error" role="alert">{submitError}</p>}
           <button className="owner-submit-button" type="submit" disabled={isSubmitting || submitted}>
             {isSubmitting ? '送信中…' : 'この内容で登録する'}

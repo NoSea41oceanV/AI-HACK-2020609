@@ -4,6 +4,8 @@ import { createAIWorkerClient } from './lib/workerClient'
 import type { IntakeAiAnalysis } from './domain/intakeProfile'
 import OwnerForm, { OwnerInviteError, type OwnerRegistrationPayload } from './pages/OwnerForm'
 import ProcessingStatus, { type ProcessingStep } from './components/ProcessingStatus'
+import PersonalityAxesDisplay from './components/PersonalityAxesDisplay'
+import { isIntakeConsent, isStructuredIntakeAnswers } from './domain/structuredIntake'
 
 const INITIAL_STEPS: ProcessingStep[] = [
   { id: 'analysis', label: 'わんちゃんの様子を確認', status: 'idle' },
@@ -13,6 +15,8 @@ function mediaMetadata(file: File | null, kind: IntakeMediaMetadata['kind']): In
   return file ? { kind, fileName:file.name, contentType:file.type, sizeBytes:file.size, status:'selected' } : undefined
 }
 function validate(payload: OwnerRegistrationPayload) {
+  if (!isStructuredIntakeAnswers(payload.pet.structured)) throw new Error('健康・社会化歴・いつもの様子の必須項目を確認してください。')
+  if (!isIntakeConsent(payload.consent)) throw new Error('情報の利用への同意を確認してください。')
   for (const [name,value,max] of [
     ['飼い主名',payload.owner.name,80],['連絡先',payload.owner.contact,200],['わんちゃんの名前',payload.pet.name,40],
     ['犬種',payload.pet.breed,80],['性格',payload.pet.personality,1000],['遊び方',payload.pet.playStyle,1000],['注意事項',payload.pet.concerns,1000],
@@ -59,7 +63,7 @@ export default function OwnerRegistration({ token }: { token:string|null }) {
       const key=(file:File|null)=>file?[file.name,file.type,file.size,file.lastModified]:null
       const signature=JSON.stringify({pet:payload.pet,photo:key(payload.media.photo),video:key(payload.media.video)})
       if(cached.current?.signature!==signature){
-        const result=await worker.analyzeOwnerRegistration({personality:payload.pet.personality,playStyle:payload.pet.playStyle,concerns:payload.pet.concerns,photo:payload.media.photo??undefined,video:payload.media.video??undefined})
+        const result=await worker.analyzeOwnerRegistration({personality:payload.pet.personality,playStyle:payload.pet.playStyle,concerns:payload.pet.concerns,structured:payload.pet.structured,photo:payload.media.photo??undefined,video:payload.media.video??undefined})
         cached.current={signature,analysis:result.analysis}
       }
       const analysis=cached.current.analysis
@@ -68,7 +72,8 @@ export default function OwnerRegistration({ token }: { token:string|null }) {
       setSteps([{...INITIAL_STEPS[0],status:'done'},{...INITIAL_STEPS[1],status:'active'}])
       const intake:OwnerIntake={
         id:current.id,inviteId:current.id,facilityId:current.facilityId,owner:{...payload.owner},
-        pet:{name:payload.pet.name,breed:payload.pet.breed,ageYears:payload.pet.age,weightKg:payload.pet.weightKg,sex:payload.pet.sex,personality:payload.pet.personality,playStyle:payload.pet.playStyle,concerns:payload.pet.concerns},
+        pet:{name:payload.pet.name,breed:payload.pet.breed,ageYears:payload.pet.age,weightKg:payload.pet.weightKg,sex:payload.pet.sex,personality:payload.pet.personality,playStyle:payload.pet.playStyle,concerns:payload.pet.concerns,structured:payload.pet.structured},
+        consent:{...payload.consent},
         media:{photo:mediaMetadata(payload.media.photo,'image'),video:mediaMetadata(payload.media.video,'video')},
         aiAnalysis:analysis,matchingProfile:analysis.matchingProfile,status:'ready',submittedAt:new Date().toISOString(),
       }
@@ -105,12 +110,13 @@ export default function OwnerRegistration({ token }: { token:string|null }) {
           <strong>AIによる整理</strong>
           <p>{analysis.summary}</p>
           {analysis.observations.length>0 && <ul>{analysis.observations.slice(0,3).map(item=><li key={item}>{item}</li>)}</ul>}
+          <PersonalityAxesDisplay axes={analysis.personalityAxes} />
           <small>入力した氏名・連絡先はAIへ送信していません。</small>
         </div>
       ) : (
         <div className="owner-analysis-empty">
           <span aria-hidden="true">🐾</span>
-          <p>入力内容を送信すると、AIが普段の様子と任意の写真・動画から行動傾向を整理します。</p>
+          <p>入力内容を送信すると、AIが健康・社会化歴・普段の様子と任意の写真・動画から行動傾向、7軸、遊び方を整理します。</p>
           <small>動画は音声を使わず、抽出した静止画だけを一時処理します。</small>
         </div>
       )}

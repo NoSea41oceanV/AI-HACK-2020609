@@ -1,5 +1,6 @@
 import type { DomainPetProfile } from './pawPalsModel'
 import { playStyleLabel } from './pawPalsModel'
+import PersonalityAxesDisplay from '../components/PersonalityAxesDisplay'
 
 interface ProfileScreenProps {
   pets: readonly DomainPetProfile[]
@@ -8,14 +9,6 @@ interface ProfileScreenProps {
   onOpenCompatibility: () => void
   onOpenMap: () => void
 }
-
-const AXES: ReadonlyArray<{ key: keyof Pick<DomainPetProfile, 'energyLevel' | 'sociability' | 'anxietyLevel' | 'assertiveness' | 'resourceGuarding'>; label: string }> = [
-  { key: 'energyLevel', label: '活動量' },
-  { key: 'sociability', label: '社交性' },
-  { key: 'anxietyLevel', label: '不安傾向' },
-  { key: 'assertiveness', label: '積極性' },
-  { key: 'resourceGuarding', label: '資源防衛' },
-]
 
 function PetAvatar({ pet }: { pet: DomainPetProfile }) {
   return pet.photoUrl
@@ -73,18 +66,7 @@ export default function ProfileScreen({
                 ? selectedPet.playStyles.map((style) => <span key={style}>{playStyleLabel(style)}</span>)
                 : <span>遊び方未登録</span>}
             </div>
-            <div className="axis-grid">
-              {AXES.map(({ key, label }) => {
-                const value = selectedPet[key]
-                return (
-                  <div className="axis" key={key}>
-                    <span>{label}</span>
-                    <i><em style={{ width: `${Math.max(0, Math.min(5, value)) * 20}%` }} /></i>
-                    <b>{value}/5</b>
-                  </div>
-                )
-              })}
-            </div>
+            <PersonalityAxesDisplay axes={selectedPet.personalityAxes} />
             <div className="profile-note">
               <b>スタッフ共有メモ</b>
               <p>{selectedPet.notes?.trim() || '共有メモは登録されていません。'}</p>
