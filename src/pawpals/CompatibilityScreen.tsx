@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import type { PairCompatibility } from '../domain/types'
 import type { DomainPetProfile, MatchingResult } from './pawPalsModel'
-import { FACTOR_META, petById, playStyleLabel } from './pawPalsModel'
+import { AI_SEVEN_AXIS_META, FACTOR_META, petById, playStyleLabel } from './pawPalsModel'
 
 interface CompatibilityScreenProps {
   pets: readonly DomainPetProfile[]
@@ -12,6 +13,39 @@ interface CompatibilityScreenProps {
 function petSummary(pet: DomainPetProfile): string {
   const styles = pet.playStyles.map(playStyleLabel).join('・')
   return `${styles || '遊び方未登録'} / ${pet.weightKg}kg`
+}
+
+function SevenAxisEvidence({ pair, pets }: { pair: PairCompatibility; pets: ReadonlyMap<string, DomainPetProfile> }) {
+  const evaluation = pair.aiSevenAxisEvaluation
+  if (pair.aiSevenAxisApplied && evaluation) {
+    return (
+      <section className="ai-seven-axis-evidence" aria-labelledby="ai-seven-axis-evidence-title">
+        <div className="ai-seven-axis-evidence__head">
+          <div><span className="eyebrow">AIプロフィール分析</span><h3 id="ai-seven-axis-evidence-title">7軸を相性計算に適用</h3></div>
+          <strong>{evaluation.contributionPoints}<small> / {evaluation.maximumContributionPoints}点</small></strong>
+        </div>
+        <p>両方の犬に保存された7軸を使い、相性100点のうち最大18点へ反映しています。7軸内の評価指数は{evaluation.score}%です。</p>
+        <div className="ai-seven-axis-breakdown">
+          {AI_SEVEN_AXIS_META.map((axis) => {
+            const value = evaluation.contributionBreakdown[axis.key]
+            return <div key={axis.key}><span>{axis.label}</span><b>{value} / {axis.maximum}点</b></div>
+          })}
+        </div>
+      </section>
+    )
+  }
+
+  const missingNames = pair.aiSevenAxisFallback?.petIds.map((petId) => pets.get(petId)?.name ?? petId) ?? []
+  return (
+    <section className="ai-seven-axis-evidence ai-seven-axis-evidence--fallback" aria-labelledby="ai-seven-axis-evidence-title">
+      <div className="ai-seven-axis-evidence__head">
+        <div><span className="eyebrow">AIプロフィール分析</span><h3 id="ai-seven-axis-evidence-title">7軸はこの計算に未適用</h3></div>
+      </div>
+      <p>{missingNames.length > 0
+        ? `${missingNames.join('・')}に保存済みの有効な7軸データがないため、既存プロフィールの6因子で計算しています。`
+        : '旧形式の保存案には7軸の適用情報がないため、保存済みの6因子による結果を表示しています。'}</p>
+    </section>
+  )
 }
 
 export default function CompatibilityScreen({ pets, matchingResult, selectedPetId, onSelectPet }: CompatibilityScreenProps) {
@@ -40,7 +74,7 @@ export default function CompatibilityScreen({ pets, matchingResult, selectedPetI
         <div>
           <span className="eyebrow">相性カルテ</span>
           <h1 id="compatibility-screen-title">相性カルテ</h1>
-          <p>当日の預かり犬について、同室不可の制約と6因子から計算した相性を確認できます。</p>
+          <p>当日の預かり犬について、同室不可の制約、6因子、利用可能なAI 7軸から計算した相性を確認できます。</p>
         </div>
       </div>
 
@@ -79,6 +113,7 @@ export default function CompatibilityScreen({ pets, matchingResult, selectedPetI
                 </div>
               ))}
             </div>
+            <SevenAxisEvidence pair={selectedPair} pets={petIndex} />
             <div className="reason-box">
               <b>判定根拠</b>
               {selectedPair.hardConstraints.length > 0 ? (
@@ -86,7 +121,7 @@ export default function CompatibilityScreen({ pets, matchingResult, selectedPetI
                   {selectedPair.hardConstraints.map((constraint, index) => <li key={`${constraint.code}-${index}`}>明示的な同室不可：{constraint.message}</li>)}
                 </ul>
               ) : (
-                <p>明示的な同室不可の登録はありません。6因子の加重点から計算した相性は{selectedPair.score}%です。</p>
+                <p>明示的な同室不可の登録はありません。6因子{selectedPair.aiSevenAxisApplied && selectedPair.aiSevenAxisEvaluation ? 'と保存済みAI 7軸' : ''}の加重点から計算した相性は{selectedPair.score}%です。</p>
               )}
             </div>
           </div>

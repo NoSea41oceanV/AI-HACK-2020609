@@ -148,7 +148,7 @@ export default function FriendMapScreen({ pets, matchingResult, rooms, selectedP
 
           <div className="card map-detail-wide">
             <div className="map-detail-head">
-              <div><span className="eyebrow">選択中の犬</span><h2>{selectedPet.name}の関係</h2><p>当日の預かり犬の全候補を表示しています。相性は6因子から計算した目安です。</p></div>
+              <div><span className="eyebrow">選択中の犬</span><h2>{selectedPet.name}の関係</h2><p>当日の預かり犬の全候補を表示しています。相性は6因子と利用可能なAI 7軸から計算した目安です。</p></div>
               <span className="map-focus">{selectedPairs.length}ペア</span>
             </div>
             <div className="relation-summary">
