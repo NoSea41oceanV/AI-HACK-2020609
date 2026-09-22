@@ -16,11 +16,12 @@ import {
   writeBatch,
 } from 'firebase/firestore'
 
-const projectId = 'demo-pawpair'
+const projectId = process.env.GCLOUD_PROJECT || 'demo-pawpair'
+const emulatorAddress = new URL(`http://${process.env.FIRESTORE_EMULATOR_HOST || '127.0.0.1:8189'}`)
 const rules = await readFile(new URL('./firestore.rules', import.meta.url), 'utf8')
 const environment = await initializeTestEnvironment({
   projectId,
-  firestore: { host: '127.0.0.1', port: 8189, rules },
+  firestore: { host: emulatorAddress.hostname, port: Number(emulatorAddress.port), rules },
 })
 
 const facilityA = 'facility-a'
@@ -119,6 +120,20 @@ try {
   const snapshot = matching(`snapshot-${Date.now().toString(36)}`, petId)
   await assertSucceeds(setDoc(doc(dbA, 'facilities', facilityA, 'demoMatchingSnapshots', snapshot.id), snapshot))
   await assertFails(setDoc(doc(dbOwner, 'facilities', facilityA, 'demoMatchingSnapshots', 'owner'), matching('owner', petId)))
+  const audited = {
+    ...matching(`audited-${Date.now().toString(36)}`, petId),
+    status: 'confirmed', proposedByStaffId: staffA, changedByStaffId: staffA, confirmedByStaffId: staffA,
+  }
+  await assertSucceeds(setDoc(doc(dbA, 'facilities', facilityA, 'demoMatchingSnapshots', audited.id), audited))
+  await assertFails(setDoc(doc(dbB, 'facilities', facilityA, 'demoMatchingSnapshots', audited.id), audited))
+  await assertFails(getDoc(doc(dbOwner, 'facilities', facilityA, 'demoMatchingSnapshots', audited.id)))
+  await assertFails(getDoc(doc(dbB, 'facilities', facilityA, 'demoMatchingSnapshots', audited.id)))
+  for (const field of ['proposedByStaffId', 'changedByStaffId', 'confirmedByStaffId']) {
+    for (const invalidStaffId of ['', 'owner@example.invalid', 'a'.repeat(81), 123, 'missing-staff', staffB]) {
+      const invalid = { ...audited, id: `invalid-${field}`, [field]: invalidStaffId }
+      await assertFails(setDoc(doc(dbA, 'facilities', facilityA, 'demoMatchingSnapshots', invalid.id), invalid))
+    }
+  }
   const observed = observation(`observation-${Date.now().toString(36)}`)
   await assertSucceeds(setDoc(doc(dbA, 'facilities', facilityA, 'demoObservations', observed.id), observed))
   await assertFails(setDoc(doc(dbB, 'facilities', facilityA, 'demoObservations', 'other'), observation('other')))

@@ -9,6 +9,12 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/facilities/$(facilityId)).data.active == true;
     }
 
+    function isActiveStaff(facilityId, staffId) {
+      return staffId is string
+        && exists(/databases/$(database)/documents/facilities/$(facilityId)/staffProfiles/$(staffId))
+        && get(/databases/$(database)/documents/facilities/$(facilityId)/staffProfiles/$(staffId)).data.active == true;
+    }
+
     function validPet(data) {
       return data.keys().hasOnly(['name', 'breed', 'ageYears', 'weightKg', 'energyLevel', 'sociability', 'anxietyLevel', 'assertiveness', 'resourceGuarding', 'playStyles', 'hardBlockedPetIds', 'notes', 'photoUrl', 'updatedAt'])
         && data.name is string && data.name.size() > 0 && data.name.size() <= 40
@@ -87,13 +93,16 @@ service cloud.firestore {
     }
 
     function validMatchingSnapshot(data, snapshotId) {
-      return data.keys().hasOnly(['id', 'status', 'petIds', 'pairResults', 'rooms', 'objectiveScore', 'createdAt'])
+      return data.keys().hasOnly(['id', 'status', 'petIds', 'pairResults', 'rooms', 'objectiveScore', 'proposedByStaffId', 'changedByStaffId', 'confirmedByStaffId', 'createdAt'])
         && data.id == snapshotId && data.id.size() > 0 && data.id.size() <= 100
         && data.status in ['proposed', 'confirmed']
         && data.petIds is list && data.petIds.size() <= 20
         && data.pairResults is list && data.pairResults.size() <= 190
         && data.rooms is list && data.rooms.size() <= 10
         && (data.objectiveScore == null || data.objectiveScore is number)
+        && (!('proposedByStaffId' in data) || (data.proposedByStaffId is string && data.proposedByStaffId.matches('^[A-Za-z0-9_-]{1,80}$')))
+        && (!('changedByStaffId' in data) || (data.changedByStaffId is string && data.changedByStaffId.matches('^[A-Za-z0-9_-]{1,80}$')))
+        && (!('confirmedByStaffId' in data) || (data.confirmedByStaffId is string && data.confirmedByStaffId.matches('^[A-Za-z0-9_-]{1,80}$')))
         && data.createdAt is string && data.createdAt.size() >= 20 && data.createdAt.size() <= 40;
     }
     function validObservation(data, observationId) {
@@ -164,7 +173,11 @@ service cloud.firestore {
         allow update, delete: if false;
       }
       match /demoMatchingSnapshots/{snapshotId} {
-        allow create: if isActiveFacility(facilityId) && validMatchingSnapshot(request.resource.data, snapshotId);
+        allow create: if isActiveFacility(facilityId)
+          && validMatchingSnapshot(request.resource.data, snapshotId)
+          && (!('proposedByStaffId' in request.resource.data) || isActiveStaff(facilityId, request.resource.data.proposedByStaffId))
+          && (!('changedByStaffId' in request.resource.data) || isActiveStaff(facilityId, request.resource.data.changedByStaffId))
+          && (!('confirmedByStaffId' in request.resource.data) || isActiveStaff(facilityId, request.resource.data.confirmedByStaffId));
         allow get: if isActiveFacility(facilityId);
         allow list: if isActiveFacility(facilityId) && request.query.limit != null && request.query.limit <= 25;
         allow update, delete: if false;

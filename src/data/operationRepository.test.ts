@@ -28,6 +28,13 @@ const memoryStorage = () => {
 describe("operation validators", () => {
   it("accepts bounded matching and observation data", () => {
     expect(isMatchingSnapshot(matching("match-1"))).toBe(true);
+    expect(isMatchingSnapshot({
+      ...matching("match-audited"),
+      proposedByStaffId: "staff-sora",
+      changedByStaffId: "staff-sora",
+      confirmedByStaffId: "staff-rin",
+      status: "confirmed",
+    })).toBe(true);
     expect(isObservationRecord(observation("obs-1"))).toBe(true);
   });
 
@@ -35,6 +42,7 @@ describe("operation validators", () => {
     expect(isMatchingSnapshot({ ...matching("too-many-pets"), petIds: Array.from({ length: 21 }, (_, index) => `pet-${index}`) })).toBe(false);
     expect(isMatchingSnapshot({ ...matching("too-many-pairs"), pairResults: Array.from({ length: 191 }, () => matching("x").pairResults[0]) })).toBe(false);
     expect(isMatchingSnapshot({ ...matching("too-many-rooms"), rooms: Array.from({ length: 11 }, () => matching("x").rooms[0]) })).toBe(false);
+    expect(isMatchingSnapshot({ ...matching("bad-staff"), proposedByStaffId: "invalid staff id" })).toBe(false);
     expect(isObservationRecord({ ...observation("too-many-facts"), facts: Array.from({ length: 21 }, () => "fact") })).toBe(false);
   });
 });

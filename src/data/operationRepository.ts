@@ -21,6 +21,10 @@ export interface MatchingSnapshot {
   pairResults: MatchingPairSnapshot[];
   rooms: MatchingRoomSnapshot[];
   objectiveScore: number | null;
+  /** Staff selection records the operator label only; it is not identity verification. */
+  proposedByStaffId?: string;
+  changedByStaffId?: string;
+  confirmedByStaffId?: string;
   createdAt: string;
 }
 
@@ -47,6 +51,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(v
 const isFiniteNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 const isStringArray = (value: unknown, maximum: number): value is string[] =>
   Array.isArray(value) && value.length <= maximum && value.every((item) => typeof item === "string" && item.length <= 200);
+const isStaffId = (value: unknown): value is string =>
+  typeof value === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(value);
 
 const isPair = (value: unknown): value is MatchingPairSnapshot => {
   if (!isRecord(value)) return false;
@@ -71,6 +77,9 @@ export const isMatchingSnapshot = (value: unknown): value is MatchingSnapshot =>
     Array.isArray(value.pairResults) && value.pairResults.length <= 190 && value.pairResults.every(isPair) &&
     Array.isArray(value.rooms) && value.rooms.length <= 10 && value.rooms.every(isRoom) &&
     (value.objectiveScore === null || isFiniteNumber(value.objectiveScore)) &&
+    (value.proposedByStaffId === undefined || isStaffId(value.proposedByStaffId)) &&
+    (value.changedByStaffId === undefined || isStaffId(value.changedByStaffId)) &&
+    (value.confirmedByStaffId === undefined || isStaffId(value.confirmedByStaffId)) &&
     typeof value.createdAt === "string" && value.createdAt.length >= 20 && value.createdAt.length <= 40;
 };
 
