@@ -120,6 +120,48 @@ try {
   await assertFails(getDocs(collection(dbA, 'facilities', facilityA, 'demoPets')))
   await assertSucceeds(getDocs(query(collection(dbA, 'facilities', facilityA, 'demoPets'), limit(26))))
 
+  const petPath = doc(dbA, 'facilities', facilityA, 'demoPets', petId)
+  const blockedIds = Array.from({ length: 50 }, (_, index) => `Pet_${index}-`.padEnd(100, 'x'))
+  const completePet = {
+    ...pet, facilityNotes: '施'.repeat(1000), tabooNotes: '注'.repeat(1000),
+    hardBlockedPetIds: blockedIds,
+    hardBlockedPetReasons: Object.fromEntries(blockedIds.map(id => [id, '理'.repeat(1000)])),
+    personalityAxes: { extraversion: 25, sociability: 75, neuroticism: 20, trainability: 50, resourceGuarding: 10, assertiveness: 30, resilience: 60 },
+    photoUrl: 'https://example.invalid/pet.png',
+  }
+  // Exercise the complete 50-entry map with every optional field: Rules have a
+  // 1,000-expression ceiling, so a smaller success case is not sufficient.
+  await assertSucceeds(setDoc(doc(dbA, 'facilities', facilityA, 'demoPets', 'full-profile'), completePet))
+  await assertSucceeds(setDoc(petPath, completePet))
+  await assertSucceeds(updateDoc(petPath, { hardBlockedPetReasons: { [blockedIds[0]]: '', [blockedIds[1]]: '改行\n区切り/|\u0000🐕' } }))
+  await assertSucceeds(updateDoc(petPath, { facilityNotes: '', tabooNotes: '', hardBlockedPetReasons: {} }))
+  const { hardBlockedPetIds: omittedIds, ...withoutBlockedIds } = pet
+  await assertSucceeds(setDoc(petPath, { ...withoutBlockedIds, hardBlockedPetReasons: {} }))
+  await assertFails(setDoc(petPath, { ...withoutBlockedIds, hardBlockedPetReasons: { other: 'reason' } }))
+  for (const field of ['facilityNotes', 'tabooNotes']) {
+    for (const value of ['x'.repeat(1001), 123]) {
+      await assertFails(setDoc(petPath, { ...pet, [field]: value }))
+    }
+  }
+  for (const reasons of [null, [], { other: 'not blocked' }]) {
+    await assertFails(setDoc(petPath, { ...pet, hardBlockedPetReasons: reasons }))
+  }
+  for (const invalidId of ['unsafe/id', 'unsafe.id', '犬', 'x'.repeat(101)]) {
+    await assertFails(setDoc(petPath, { ...pet, hardBlockedPetIds: [invalidId], hardBlockedPetReasons: { [invalidId]: 'reason' } }))
+    await assertFails(setDoc(petPath, { ...pet, hardBlockedPetIds: [invalidId] }))
+  }
+  const tooManyIds = [...blockedIds, 'extra']
+  await assertFails(setDoc(petPath, { ...pet, hardBlockedPetIds: tooManyIds, hardBlockedPetReasons: Object.fromEntries(tooManyIds.map(id => [id, 'reason'])) }))
+  for (const value of ['x'.repeat(1001), 123, null, true, [], {}]) {
+    await assertFails(setDoc(petPath, { ...completePet, hardBlockedPetReasons: { ...completePet.hardBlockedPetReasons, [blockedIds[49]]: value } }))
+  }
+  await assertFails(setDoc(petPath, { ...completePet, unexpectedField: true }))
+  await assertFails(setDoc(doc(dbOwner, 'facilities', facilityA, 'demoPets', 'owner-notes'), completePet))
+  await assertFails(setDoc(doc(dbB, 'facilities', facilityA, 'demoPets', 'other-facility-notes'), completePet))
+  await assertSucceeds(setDoc(petPath, completePet))
+  await assertFails(updateDoc(petPath, { hardBlockedPetIds: [] }))
+  await assertSucceeds(updateDoc(petPath, { hardBlockedPetIds: [], hardBlockedPetReasons: {} }))
+
   const snapshot = matching(`snapshot-${Date.now().toString(36)}`, petId)
   await assertSucceeds(setDoc(doc(dbA, 'facilities', facilityA, 'demoMatchingSnapshots', snapshot.id), snapshot))
   await assertFails(setDoc(doc(dbOwner, 'facilities', facilityA, 'demoMatchingSnapshots', 'owner'), matching('owner', petId)))

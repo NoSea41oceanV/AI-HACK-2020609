@@ -24,13 +24,13 @@ export interface StaffAppProps {
   auditEntries: readonly OperationAuditEvent[]
   staffName: string
   busy: boolean
-  onOperationDateChange: (date: string) => void
   onSaveDailyPets: (petIds: string[]) => Promise<void>
   onSaveRooms: (rooms: RoomDefinition[]) => Promise<void>
   onOptimize: () => void | Promise<void>
   onDecidePlan: (decision: 'confirmed' | 'rejected', reason: string) => Promise<void>
   onIssueInvite: () => Promise<string>
   onObserve: (submission: ObservationSubmission) => Promise<void>
+  onSavePetProfile: (pet: DomainPetProfile) => Promise<void>
 }
 
 type ScreenId = 'owner' | 'today' | 'profile' | 'match' | 'map'
@@ -48,22 +48,12 @@ export default function StaffApp(props: StaffAppProps) {
   const [selectedPetId, setSelectedPetId] = useState('')
   const dailyPetIds = new Set(props.dailyOperation?.date === props.operationDate ? props.dailyOperation.selectedPetIds : [])
   const dailyPets = props.pets.filter((pet) => dailyPetIds.has(pet.id))
-  const processingLabel = props.busy
-    ? '計算・保存中'
-    : props.matchingResult
-      ? '計算済み'
-      : '計算待ち'
-
   return (
     <div className="app pawpals-app">
       <header className="site-header">
         <div className="brand-wrap">
           <div className="brand">PawPals</div>
           <div className="tagline">AIと一緒に、今日のわんこたちを見守る。</div>
-        </div>
-        <div className="pawpals-header-meta">
-          <div className="agent-badge">{props.busy ? <span className="pulse" /> : null}{processingLabel}</div>
-          <div className="agent-badge">操作担当：{props.staffName}</div>
         </div>
       </header>
 
@@ -91,6 +81,7 @@ export default function StaffApp(props: StaffAppProps) {
             onSelectPet={setSelectedPetId}
             onOpenCompatibility={() => setScreen('match')}
             onOpenMap={() => setScreen('map')}
+            onSavePetProfile={props.onSavePetProfile}
           />
         ) : null}
         {screen === 'match' ? (

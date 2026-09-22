@@ -26,7 +26,10 @@ export interface PetProfile {
   resourceGuarding: number;
   playStyles: PlayStyle[];
   hardBlockedPetIds?: string[];
+  hardBlockedPetReasons?: Record<string, string>;
   notes?: string;
+  facilityNotes?: string;
+  tabooNotes?: string;
   photoUrl?: string;
   updatedAt?: string;
 }

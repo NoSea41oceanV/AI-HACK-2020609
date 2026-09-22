@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { DomainPetProfile } from './pawPalsModel'
 import { petPhotoUrl, playStyleLabel } from './pawPalsModel'
 import PersonalityAxesDisplay from '../components/PersonalityAxesDisplay'
@@ -8,6 +9,7 @@ interface ProfileScreenProps {
   onSelectPet: (petId: string) => void
   onOpenCompatibility: () => void
   onOpenMap: () => void
+  onSavePetProfile: (pet: DomainPetProfile) => Promise<void>
 }
 
 function PetAvatar({ pet }: { pet: DomainPetProfile }) {
@@ -20,8 +22,55 @@ export default function ProfileScreen({
   onSelectPet,
   onOpenCompatibility,
   onOpenMap,
+  onSavePetProfile,
 }: ProfileScreenProps) {
   const selectedPet = pets.find((pet) => pet.id === selectedPetId) ?? pets[0] ?? null
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
+  const [tabooNotes, setTabooNotes] = useState(() => selectedPet?.tabooNotes ?? '')
+  const [facilityNotes, setFacilityNotes] = useState(() => selectedPet?.facilityNotes ?? '')
+  const [hardBlockedPetIds, setHardBlockedPetIds] = useState<string[]>(() => selectedPet?.hardBlockedPetIds ?? [])
+  const [hardBlockedPetReasons, setHardBlockedPetReasons] = useState<Record<string, string>>(() => selectedPet?.hardBlockedPetReasons ?? {})
+  useEffect(() => {
+    setTabooNotes(selectedPet?.tabooNotes ?? '')
+    setFacilityNotes(selectedPet?.facilityNotes ?? '')
+    setHardBlockedPetIds(selectedPet?.hardBlockedPetIds ?? [])
+    setHardBlockedPetReasons(selectedPet?.hardBlockedPetReasons ?? {})
+    setSaveError('')
+  }, [selectedPet?.id, selectedPet?.tabooNotes, selectedPet?.facilityNotes, selectedPet?.hardBlockedPetIds, selectedPet?.hardBlockedPetReasons])
+  function setPairBlocked(petId: string, blocked: boolean) {
+    setHardBlockedPetIds((current) => blocked
+      ? [...new Set([...current, petId])].sort((left, right) => left.localeCompare(right))
+      : current.filter((id) => id !== petId))
+    if (!blocked) setHardBlockedPetReasons((current) => {
+      const next = { ...current }
+      delete next[petId]
+      return next
+    })
+  }
+  async function saveNotes() {
+    if (!selectedPet) return
+    setSaving(true)
+    setSaveError('')
+    const blockedIds = [...new Set(hardBlockedPetIds.filter((id) => id !== selectedPet.id))]
+      .sort((left, right) => left.localeCompare(right))
+    const blockedReasons = Object.fromEntries(blockedIds.flatMap((id) => {
+      const reason = hardBlockedPetReasons[id]?.trim()
+      return reason ? [[id, reason]] : []
+    }))
+    try {
+      await onSavePetProfile({
+        ...selectedPet,
+        tabooNotes: tabooNotes.trim(),
+        facilityNotes: facilityNotes.trim(),
+        hardBlockedPetIds: blockedIds,
+        hardBlockedPetReasons: blockedReasons,
+      })
+    } catch (cause) {
+      setSaveError(cause instanceof Error ? cause.message : '施設情報を保存できませんでした。')
+    }
+    finally { setSaving(false) }
+  }
 
   return (
     <section className="screen active" aria-labelledby="profile-screen-title">
@@ -66,10 +115,34 @@ export default function ProfileScreen({
             <PersonalityAxesDisplay axes={selectedPet.personalityAxes} />
             <div className="profile-note">
               <b>スタッフ共有メモ</b>
-              <p>{selectedPet.notes?.trim() || '共有メモは登録されていません。'}</p>
+              <div className="profile-note__registration">
+                <span>登録時メモ</span>
+                <p>{selectedPet.notes?.trim() || '登録時メモは登録されていません。'}</p>
+              </div>
+              <label className="profile-note__facility">共有メモ<textarea value={facilityNotes} disabled={saving} onChange={(event) => setFacilityNotes(event.target.value)} maxLength={1000} rows={3} placeholder="施設での様子、引き継ぎ、対応メモなど" /></label>
+            </div>
+            <div className="taboo-alert profile-taboo-box" aria-label={`${selectedPet.name}の禁忌事項`}>
+              <b>禁忌事項</b>
+              <p>{selectedPet.tabooNotes?.trim() || '登録されていません。'}</p>
+              <label>全体の禁忌事項<textarea value={tabooNotes} disabled={saving} onChange={(event) => setTabooNotes(event.target.value)} maxLength={1000} rows={3} placeholder="同室を避けたい条件、触れてほしくない場所など" /></label>
+              <fieldset>
+                <legend>犬ごとの同室不可・理由</legend>
+                {pets.filter((pet) => pet.id !== selectedPet.id).map((pet) => {
+                  const blocked = hardBlockedPetIds.includes(pet.id)
+                  const blockedByOther = pet.hardBlockedPetIds?.includes(selectedPet.id) ?? false
+                  return <div key={pet.id}>
+                    <label><input type="checkbox" checked={blocked} disabled={saving} onChange={(event) => setPairBlocked(pet.id, event.target.checked)} />{pet.name}を同室不可にする</label>
+                    {blocked ? <label>{pet.name}との同室不可理由<textarea value={hardBlockedPetReasons[pet.id] ?? ''} disabled={saving} onChange={(event) => setHardBlockedPetReasons((current) => ({ ...current, [pet.id]: event.target.value }))} maxLength={1000} rows={2} placeholder="例：食事中に資源防衛があるため" /></label> : null}
+                    {blockedByOther ? <p>{pet.name}側からも同室不可：{pet.hardBlockedPetReasons?.[selectedPet.id]?.trim() || '理由未登録'}</p> : null}
+                  </div>
+                })}
+                {pets.length < 2 ? <p>同室不可の相手として選べる犬はまだいません。</p> : null}
+              </fieldset>
+              {saveError ? <p role="alert">{saveError}</p> : null}
+              <button type="button" className="primary profile-save" disabled={saving} onClick={() => void saveNotes()}>{saving ? '保存中…' : '共有メモ・禁忌事項を保存'}</button>
             </div>
             <div className="history">
-              <h3>安全制約</h3>
+              <h3>禁忌事項の登録状況</h3>
               <div><span>同室不可として登録された相手</span><b>{selectedPet.hardBlockedPetIds?.length ?? 0}頭</b></div>
               {selectedPet.updatedAt ? <div><span>最終更新</span><b>{new Date(selectedPet.updatedAt).toLocaleString('ja-JP')}</b></div> : null}
             </div>

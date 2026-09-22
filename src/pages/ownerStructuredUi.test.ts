@@ -80,10 +80,28 @@ describe('saved seven-axis presentation', () => {
 
   it('keeps a legacy profile readable without inventing seven axes from old five-axis scores', () => {
     const pet: DomainPetProfile = { id: 'legacy', name: '旧プロフィール', breed: '柴犬', ageYears: 4, weightKg: 8, energyLevel: 4, sociability: 4, anxietyLevel: 2, assertiveness: 3, resourceGuarding: 1, playStyles: ['gentle'] }
-    const html = renderToStaticMarkup(createElement(ProfileScreen, { pets: [pet], selectedPetId: pet.id, onSelectPet: () => undefined, onOpenCompatibility: () => undefined, onOpenMap: () => undefined }))
+    const html = renderToStaticMarkup(createElement(ProfileScreen, { pets: [pet], selectedPetId: pet.id, onSelectPet: () => undefined, onOpenCompatibility: () => undefined, onOpenMap: () => undefined, onSavePetProfile: async () => undefined }))
     expect(html).toContain('旧プロフィール')
     expect(html).toContain('保存済みの7軸データがありません')
     expect(html).not.toContain('<meter')
     expect(html).not.toContain('/5')
+  })
+
+  it('shows saved facility notes in the profile book', () => {
+    const pet: DomainPetProfile = { id: 'facility-notes', name: '施設メモ犬', ageYears: 4, weightKg: 8, energyLevel: 4, sociability: 4, anxietyLevel: 2, assertiveness: 3, resourceGuarding: 1, playStyles: ['gentle'], tabooNotes: '食器を守るため単独で給餌', facilityNotes: '午前中は静かな場所で休ませる', hardBlockedPetIds: ['counterpart'], hardBlockedPetReasons: { counterpart: '食事中は同室不可' } }
+    const counterpart: DomainPetProfile = { ...pet, id: 'counterpart', name: '相手犬', hardBlockedPetIds: [pet.id], hardBlockedPetReasons: { [pet.id]: '相手側の理由' } }
+    const html = renderToStaticMarkup(createElement(ProfileScreen, { pets: [pet, counterpart], selectedPetId: pet.id, onSelectPet: () => undefined, onOpenCompatibility: () => undefined, onOpenMap: () => undefined, onSavePetProfile: async () => undefined }))
+    expect(html).toContain('スタッフ共有メモ')
+    expect(html).toContain('登録時メモ')
+    expect(html).toContain('共有メモ')
+    expect(html).toContain('禁忌事項')
+    expect(html).toContain('食器を守るため単独で給餌')
+    expect(html).toContain('犬ごとの同室不可・理由')
+    expect(html).toContain('相手犬を同室不可にする')
+    expect(html).toContain('食事中は同室不可')
+    expect(html).toContain('相手犬側からも同室不可：相手側の理由')
+    expect(html).toContain('共有メモ・禁忌事項を保存')
+    expect(html).not.toContain('保存済みの施設情報')
+    expect(html).not.toContain('<b>スタッフメモ</b>')
   })
 })

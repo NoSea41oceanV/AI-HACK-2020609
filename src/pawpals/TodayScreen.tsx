@@ -19,7 +19,6 @@ export interface TodayScreenProps {
   roomSettings: FacilityRoomSettings | null
   currentPlan: DailyOperationPlan | null
   auditEntries: readonly OperationAuditEvent[]
-  onOperationDateChange: (date: string) => void
   onSaveDailyPets: (petIds: string[]) => Promise<void>
   onSaveRooms: (rooms: RoomDefinition[]) => Promise<void>
   onOptimize: () => void | Promise<void>
@@ -39,7 +38,7 @@ export default function TodayScreen(props: TodayScreenProps) {
 function DailyOperationsEditor({
   pets, matchingResult, rooms, matchingHistory, observations, busy, staffName,
   operationDate, dailyOperation, roomSettings, currentPlan, auditEntries,
-  onOperationDateChange, onSaveDailyPets, onSaveRooms, onOptimize, onDecidePlan,
+  onSaveDailyPets, onSaveRooms, onOptimize, onDecidePlan,
 }: TodayScreenProps) {
   const day = dailyOperation?.date === operationDate ? dailyOperation : null
   const savedPetIds = day?.selectedPetIds ?? []
@@ -92,6 +91,13 @@ function DailyOperationsEditor({
       setError(cause instanceof Error ? cause.message : `${label}に失敗しました。もう一度お試しください。`)
     } finally { setPending(null) }
   }
+  const decide = (decision: 'confirmed' | 'rejected') => run(
+    decision === 'confirmed' ? '編成案の承認' : '編成案の却下',
+    () => {
+      if (decision === 'rejected' && !reason.trim()) throw new Error('却下する前に、判断理由・確認メモを入力してください。')
+      return onDecidePlan(decision, reason.trim())
+    },
+  )
 
   function updateRoom(id: string, changes: Partial<RoomDefinition>) {
     setRoomDraft((previous) => previous.map((room) => room.id === id ? { ...room, ...changes } : room))
@@ -101,14 +107,13 @@ function DailyOperationsEditor({
     <section className="screen active daily-operations" aria-labelledby="today-screen-title" aria-busy={working}>
       <div className="page-title">
         <div><span className="eyebrow">DAY CARE OPERATIONS</span></div>
-        <label className="daily-date">運営日<input type="date" aria-label="運営日" value={operationDate} disabled={working} onChange={(event) => { if (event.target.value) onOperationDateChange(event.target.value) }} /></label>
       </div>
       {error ? <p className="daily-message daily-message-error" role="alert">{error}</p> : null}
       {pending || notice ? <p className="daily-message" role="status">{pending ? `${pending}中…` : notice}</p> : null}
       <div className="kpis">
+        <div className="kpi daily-date-kpi"><b>{operationDate}</b><span>運営日</span></div>
         <div className="kpi"><b>{savedPetIds.length}<small>頭</small></b><span>当日の預かり犬・保存済み</span></div>
         <div className="kpi"><b>{roomSettings?.rooms.length ?? 0}<small>室</small></b><span>施設の部屋・保存済み</span></div>
-        <div className="kpi"><b>{awaitingApproval ? 1 : 0}<small>件</small></b><span>最新案の承認待ち</span></div>
         <div className="kpi"><b className="daily-state-value">{stateLabel}</b><span>当日の編成状態</span></div>
       </div>
       <div className="daily-setup-grid">
@@ -143,27 +148,48 @@ function DailyOperationsEditor({
       <div className="daily-results-grid">
         <section className="card daily-plan" aria-labelledby="daily-plan-title">
           <div className="card-top"><div><span className="eyebrow">03 · 編成とスタッフ確認</span><h2 id="daily-plan-title">当日のグループ編成案</h2></div><span className={`status ${awaitingApproval || (plan && !planMatchesSettings) ? 'warning' : ''}`}>{stateLabel}</span></div>
+          <div className="daily-plan-scroll">
           {unsaved ? <p className="daily-validation">預かり犬または部屋に未保存の変更があります。保存後に再計算・承認してください。</p> : null}
           {savedPetMissing ? <p className="daily-validation">保存済みの預かり犬に、登録情報を確認できない犬がいます。対象から外して保存してください。</p> : null}
           {plan && !planMatchesSettings ? <p className="daily-validation">この案の作成後に対象犬または部屋設定が更新されました。最新の設定で再計算してください。</p> : null}
           {plan ? <>
             <p className="daily-plan-meta">作成 {formatRecordedAt(plan.createdAt)} · 対象 {plan.petIds.length}頭</p>
-            {plan.result.rooms.map((assignment) => <div className={`group-row ${planMatchesSettings && plan.status !== 'rejected' ? 'proposed' : ''}`} key={assignment.roomId}>
-              <div className="group-name"><b>{roomName(plan.rooms, assignment.roomId)}</b><span>{assignment.petIds.length}頭 / 定員 {plan.rooms.find((room) => room.id === assignment.roomId)?.capacity ?? '—'}頭</span></div>
-              <div className="dog-names">{assignment.petIds.map((petId) => petIndex.get(petId)?.name ?? petId).join(' ・ ') || '空室'}</div>
-              <span className="verdict good">制約通過</span>
-            </div>)}
-            <div className="reason-box"><b>計算結果</b><p>全{plan.result.pairResults.length}ペアを評価。同室ペアの合計相性スコアは{plan.result.totalCompatibilityScore}点です。</p><small>合計点は部屋内のペアのスコアを足した値です。</small></div>
+            {plan.result.rooms.map((assignment) => {
+              const assignmentPetIds = new Set(assignment.petIds)
+              const assignmentPets = assignment.petIds.map((petId) => petIndex.get(petId)).filter((pet): pet is DomainPetProfile => Boolean(pet))
+              const blockedPairs = plan.result.pairResults.filter((pair) => !pair.allowed && assignmentPetIds.has(pair.petAId) && assignmentPetIds.has(pair.petBId))
+              const safetyNotes = assignmentPets.flatMap((pet) => pet.tabooNotes?.trim() ? [`${pet.name}：${pet.tabooNotes.trim()}`] : [])
+              const blockedRelations = blockedPairs.map((pair) => {
+                const petA = petIndex.get(pair.petAId)
+                const petB = petIndex.get(pair.petBId)
+                const reasons = [
+                  petA?.hardBlockedPetIds?.includes(pair.petBId) ? petA.hardBlockedPetReasons?.[pair.petBId]?.trim() : '',
+                  petB?.hardBlockedPetIds?.includes(pair.petAId) ? petB.hardBlockedPetReasons?.[pair.petAId]?.trim() : '',
+                ].filter(Boolean)
+                return `${petA?.name ?? pair.petAId} × ${petB?.name ?? pair.petBId}：${reasons.join(' / ') || '登録された同室不可'}`
+              })
+              return <div className={`group-row ${planMatchesSettings && plan.status !== 'rejected' ? 'proposed' : ''}`} key={assignment.roomId}>
+                <div className="group-name"><b>{roomName(plan.rooms, assignment.roomId)}</b><span>{assignment.petIds.length}頭 / 定員 {plan.rooms.find((room) => room.id === assignment.roomId)?.capacity ?? '—'}頭</span></div>
+                <div className="dog-names">{assignment.petIds.map((petId) => petIndex.get(petId)?.name ?? petId).join(' ・ ') || '空室'}</div>
+                <span className="verdict good">制約通過</span>
+                {safetyNotes.length > 0 || blockedRelations.length > 0 ? <div className="daily-room-safety" aria-label={`${roomName(plan.rooms, assignment.roomId)}の安全確認`}>
+                  <b>禁忌事項・同室不可関係</b>
+                  {safetyNotes.length > 0 ? <ul><li>{safetyNotes.join(' / ')}</li></ul> : null}
+                  {blockedRelations.length > 0 ? <ul className="daily-room-safety__blocked">{blockedRelations.map((relation) => <li key={relation}>同室不可：{relation}</li>)}</ul> : null}
+                </div> : null}
+              </div>
+            })}
             {plan.status === 'confirmed' || plan.status === 'rejected' ? <div className="daily-decision-record"><b>{PLAN_LABELS[plan.status]} · {plan.staffId}</b><p>{formatRecordedAt(plan.updatedAt)}{plan.reason ? ` · ${plan.reason}` : ' · 理由の記入なし'}</p></div> : null}
           </> : <div className="pawpals-empty"><b>当日の編成案はまだありません</b><p>預かり犬と施設の部屋設定を保存して、部屋割りを計算してください。</p></div>}
           {matchingResult?.status === 'infeasible' ? <p className="daily-message daily-message-error" role="alert">編成案を作成できませんでした。{matchingResult.message}</p> : null}
+          </div>
           <div className="approval">
             <div><b>操作担当：{staffName}</b><small>最新の案を確認し、承認または却下を記録します。</small></div>
-            <label className="daily-reason">判断理由・確認メモ（承認・却下ともに必須）<textarea value={reason} required disabled={!canDecide} maxLength={1000} placeholder="例：当日の体調と部屋の利用状況を確認しました。" onChange={(event) => setReasonState({ planId: currentPlan?.id, value: event.target.value })} /></label>
+            <label className="daily-reason">判断理由・確認メモ（却下の場合のみ必須）<textarea value={reason} disabled={!canDecide} maxLength={1000} placeholder="却下する場合は、理由を入力してください。" onChange={(event) => setReasonState({ planId: currentPlan?.id, value: event.target.value })} /></label>
             <div className="approval-buttons">
               <button className="secondary" type="button" disabled={!canOptimize} onClick={() => void run('部屋割りの再計算', onOptimize)}>部屋割りを再計算</button>
-              <button className="danger-outline" type="button" disabled={!canDecide || !reason.trim()} onClick={() => void run('編成案の却下', () => onDecidePlan('rejected', reason.trim()))}>この案を却下</button>
-              <button className="primary" type="button" disabled={!canDecide || !reason.trim()} onClick={() => void run('編成案の承認', () => onDecidePlan('confirmed', reason.trim()))}>この案を承認・確定</button>
+              <button className="danger-outline" type="button" disabled={!canDecide} onClick={() => void decide('rejected')}>この案を却下</button>
+              <button className="primary" type="button" disabled={!canDecide} onClick={() => void decide('confirmed')}>この案を承認・確定</button>
             </div>
             {!day || !roomSettings || savedPetIds.length === 0 ? <p className="daily-help">計算には、1頭以上の預かり犬と部屋設定の保存が必要です。</p> : null}
           </div>

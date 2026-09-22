@@ -65,6 +65,19 @@ export default function CompatibilityScreen({ pets, matchingResult, selectedPetI
     ? selectedPair.petAId === primary?.id ? selectedPair.petBId : selectedPair.petAId
     : ''
   const counterpart = petIndex.get(counterpartId) ?? null
+  const selectedPairSafetyNotes = primary && counterpart
+    ? [primary, counterpart].flatMap((pet) => {
+      const otherId = pet.id === primary.id ? counterpart.id : primary.id
+      const notes = pet.tabooNotes?.trim()
+      const explicitBlock = pet.hardBlockedPetIds?.includes(otherId)
+        ? pet.hardBlockedPetReasons?.[otherId]?.trim() || '登録された同室不可'
+        : ''
+      return [
+        notes ? `${pet.name}：${notes}` : '',
+        explicitBlock ? `${pet.name}：${explicitBlock}` : '',
+      ].filter(Boolean)
+    })
+    : []
 
   const selectPrimary = (petId: string) => {
     onSelectPet(petId)
@@ -89,6 +102,20 @@ export default function CompatibilityScreen({ pets, matchingResult, selectedPetI
                 {pets.map((pet) => <option value={pet.id} key={pet.id}>{pet.name}</option>)}
               </select>
             </label>
+            <label className="pawpals-field">
+              <span>相手の犬（選択ペア）</span>
+              <select
+                value={counterpartId}
+                onChange={(event) => setRequestedCounterpartId(event.target.value)}
+                aria-label={`${primary.name}の相手の犬`}
+              >
+                {candidates.map((pair) => {
+                  const otherId = pair.petAId === primary.id ? pair.petBId : pair.petAId
+                  const other = petIndex.get(otherId)
+                  return <option value={otherId} key={pair.pairKey}>{other?.name ?? otherId}</option>
+                })}
+              </select>
+            </label>
             <div className="pair-head">
               <div className="avatar"><PetPhoto pet={primary} /></div>
               <div><b>{primary.name}</b><small>{petSummary(primary)}</small></div>
@@ -102,6 +129,10 @@ export default function CompatibilityScreen({ pets, matchingResult, selectedPetI
                 {selectedPair.allowed ? '禁忌事項なし' : '禁忌事項あり'}
               </span>
             </div>
+            {selectedPairSafetyNotes.length > 0 ? <div className="taboo-alert" aria-label="選択中2頭の禁忌事項">
+              <b>禁忌事項・注意点</b>
+              <ul>{selectedPairSafetyNotes.map((note, index) => <li key={`${note}-${index}`}>{note}</li>)}</ul>
+            </div> : null}
             <h3>相性の内訳</h3>
             <div className="score-breakdown">
               {FACTOR_META.map((factor) => (

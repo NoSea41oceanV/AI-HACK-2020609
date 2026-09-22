@@ -8,10 +8,10 @@ import FriendMapScreen from './FriendMapScreen'
 import { formatRecordedAt, type DomainPetProfile } from './pawPalsModel'
 import type { PersonalityAxes } from '../domain/structuredIntake'
 
-const pet = (id: string, hardBlockedPetIds: string[] = []): DomainPetProfile => ({
+const pet = (id: string, hardBlockedPetIds: string[] = [], tabooNotes = '', hardBlockedPetReasons: Record<string, string> = {}): DomainPetProfile => ({
   id, name: id.toUpperCase(), ageYears: 3, weightKg: 8, energyLevel: 3,
   sociability: 3, anxietyLevel: 2, assertiveness: 2, resourceGuarding: 1,
-  playStyles: ['gentle'], hardBlockedPetIds,
+  playStyles: ['gentle'], hardBlockedPetIds, hardBlockedPetReasons, tabooNotes,
 })
 const rooms = [{ id: 'a', name: 'A室', capacity: 2, minOccupancy: 0 }, { id: 'b', name: 'B室', capacity: 2, minOccupancy: 0 }]
 const onSelectPet = () => undefined
@@ -22,7 +22,7 @@ const axes: PersonalityAxes = {
 
 describe('daily compatibility views', () => {
   it('displays continuous compatibility percentages while preserving explicit blocks', () => {
-    const pets = [pet('a', ['b']), pet('b')]
+    const pets = [pet('a', ['b'], '食器の近くでは距離を取る', { b: '食事中は同室不可' }), pet('b', [], '急な接触を避ける')]
     const matchingResult = createOptimalRoomPlan(pets, rooms)
     const chart = renderToStaticMarkup(createElement(CompatibilityScreen, { pets, matchingResult, selectedPetId: 'a', onSelectPet }))
     const map = renderToStaticMarkup(createElement(FriendMapScreen, { pets, matchingResult, rooms, selectedPetId: 'a', onSelectPet }))
@@ -33,6 +33,9 @@ describe('daily compatibility views', () => {
       expect(html).not.toContain('AI生成')
     }
     expect(chart).toContain('明示的な同室不可')
+    expect(chart).toContain('食器の近くでは距離を取る')
+    expect(chart).toContain('食事中は同室不可')
+    expect(chart).toContain('急な接触を避ける')
     expect(chart).toContain('相性の内訳')
   })
 

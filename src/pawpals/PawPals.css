@@ -87,22 +87,38 @@ input[type=radio], input[type=checkbox] { width:auto; }
 
 /* Grounded, readable visual direction. */
 :root{--green:#2f5d50;--deep:#1f3832;--cream:#f1eee8;--paper:#fff;--line:#c9c8c2;--muted:#65706c;--ink:#27332f;--shadow:0 8px 24px rgba(25,38,34,.09)}
-body{font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;background:#f1eee8;color:var(--ink)}
+body{font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;background:#f1eee8;color:var(--ink);font-size:16px;font-weight:600}
 .brand,.page-title h1,.kpi b,.pair-head>span,.score,.pair-score b,.relation-summary b,.relation-score strong{font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;font-weight:700}
 .dog-select__identity{display:flex;align-items:center;gap:8px}.dog-select__identity img{width:30px;height:30px;border-radius:50%;object-fit:cover}.avatar{overflow:hidden}
+.profile-note__registration{margin-top:7px}.profile-note__registration span{display:block;color:var(--muted);font-size:10px}.profile-note__registration p{white-space:pre-wrap;overflow-wrap:anywhere}.profile-note__facility{display:grid;gap:5px;margin-top:10px;color:var(--muted);font-size:10px}.profile-note__facility textarea{min-height:60px}.taboo-alert{margin:14px 0;padding:11px 13px;border:1px solid #e8b8ae;border-left:4px solid #bd4d3f;background:#fff0eb;border-radius:8px;color:#7d2f28;font-size:12px;line-height:1.7}.taboo-alert b{display:block;color:#8c3027}.taboo-alert ul{margin:5px 0 0;padding-left:18px}.taboo-alert p{margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}.profile-taboo-box{display:grid;gap:8px}.profile-taboo-box label{display:grid;gap:5px;margin-top:5px;font-size:10px;color:#8c3027}.profile-taboo-box textarea{min-height:60px;border-color:#d98d82;background:#fffdfc}.profile-taboo-box fieldset{display:grid;gap:8px;max-height:230px;margin:4px 0 0;padding:10px;border:1px solid #e1aaa0;border-radius:9px;overflow:auto}.profile-taboo-box fieldset>div{padding:7px 0;border-bottom:1px solid #edcfc9}.profile-taboo-box fieldset>div:last-child{border-bottom:0}.profile-taboo-box fieldset label:has(input[type=checkbox]){display:flex;align-items:center;gap:7px;margin:0}.profile-taboo-box legend{padding:0 6px;font-size:11px;font-weight:800;color:#8c3027}.profile-save{justify-self:start}
 .node image{pointer-events:none}.node text.name{paint-order:stroke;stroke:#fff;stroke-width:3px}
 .edges .good{stroke:#3f7663}.edges .incompatible{stroke:#9b554b;stroke-dasharray:7 7}.edges .not-in-room{stroke-dasharray:7 7}.edges .active-room{stroke-width:8}
 .legend span{display:inline-flex;align-items:center;gap:3px}
 
 /* Keep the staff workspace compact so the primary view fits in one viewport. */
-.pawpals-app{min-height:100dvh;overflow:auto;padding:10px 24px}
+.pawpals-app{height:100dvh;min-height:0;overflow:hidden;padding:10px 24px}
 .pawpals-app .site-header{padding:0 4px 7px;min-height:34px}
-.pawpals-app .brand{font-size:20px;line-height:1.1}
-.pawpals-app .tagline{font-size:9px;margin-top:1px}
+.pawpals-app .brand{font-size:25px;line-height:1.1}
+.pawpals-app .tagline{font-size:10px;margin-top:1px;font-weight:600}
 .pawpals-app .pawpals-header-meta{gap:5px}
 .pawpals-app .agent-badge{padding:5px 8px;font-size:9px}
 .pawpals-app .main-nav{padding:2px 0 8px;gap:5px}
-.pawpals-app .nav-item{padding:7px 10px;font-size:11px}
+.pawpals-app .nav-item{padding:8px 10px;font-size:12px;font-weight:700}
 .pawpals-app .nav-item{flex:1;min-width:150px;text-align:center}
 .pawpals-app .screen{padding-top:12px}
+.pawpals-app p,.pawpals-app label,.pawpals-app input,.pawpals-app select,.pawpals-app textarea,.pawpals-app button{font-weight:600}
+.pawpals-app .eyebrow,.pawpals-app small,.pawpals-app .muted{font-weight:600}
+.pawpals-app{font-size:17px}.pawpals-app .card h2{font-size:19px}.pawpals-app .page-title h1{font-size:30px}.pawpals-app .daily-help,.pawpals-app .daily-pet-option,.pawpals-app .daily-message{font-size:15px}.pawpals-app .status,.pawpals-app .verdict{font-size:14px}
+.facility-toolbar__staff-note{font-weight:800;color:var(--deep)}
+.app-status{position:fixed;z-index:50;top:50%;left:50%;transform:translate(-50%,-50%);width:min(760px,calc(100vw - 40px));padding:18px 20px;border:2px solid var(--green);border-radius:14px;background:#fff;box-shadow:0 18px 50px rgba(20,35,28,.22);font-size:16px;display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:14px}
+.app-status button{display:block;margin:0;font-size:14px;white-space:nowrap}
+.app-status__close{padding:2px 8px!important;border:0!important;background:transparent!important;color:var(--deep)!important;font-size:26px!important;line-height:1}
+.facility-toolbar{position:absolute;z-index:10;top:6px;right:20px;width:auto;max-width:none;margin:0;padding:4px 0;border:0;background:transparent}
+.facility-toolbar span{flex:0 1 auto;white-space:nowrap}
+.pawpals-app .site-header{padding-right:min(560px,62vw)}
+.profile-layout,.match-layout{height:calc(100dvh - 205px);min-height:480px}
+.profile-layout>.card,.match-layout>.card{min-height:0;overflow:auto}
+.profile-layout .dog-list{height:100%;max-height:none}
+@media(max-width:850px){.profile-layout,.match-layout{height:calc(100dvh - 205px);min-height:430px}.profile-layout>.card,.match-layout>.card{overflow:auto}.profile-layout .dog-list{height:100%;max-height:none}.facility-toolbar{position:absolute;width:auto;padding:4px 0;border:0}.pawpals-app .site-header{padding-right:min(560px,62vw)}}
 @media(max-width:600px){.pawpals-app{padding:8px 14px}.pawpals-app .site-header{align-items:center}.pawpals-app .pawpals-header-meta{display:none}.pawpals-app .screen{padding-top:9px}}
+@media(max-width:720px){.pawpals-app{height:auto;min-height:100dvh;overflow:auto}.profile-layout,.match-layout{height:auto;min-height:0}.profile-layout>.card,.match-layout>.card{overflow:visible}.profile-layout .dog-list{height:auto}.facility-toolbar{position:static;width:auto;padding:8px 16px;border-bottom:1px solid var(--line)}.pawpals-app .site-header{padding-right:4px}}

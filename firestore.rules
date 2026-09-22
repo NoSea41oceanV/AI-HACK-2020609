@@ -68,24 +68,97 @@ service cloud.firestore {
       let marker = get(/databases/$(database)/documents/registrationInvites/$(inviteId)).data;
       return marker.active == true && marker.facilityId == facilityId;
     }
+    function validBlockedReasons(reasons, blockedIds) {
+      let keys = reasons.keys();
+      let values = reasons.values();
+      let count = reasons.size();
+      // Rules cannot iterate maps. Check every possible value explicitly.
+      // String-only matches() enforces type and length in one call; (?s) allows
+      // multiline notes. ID validation is shared with the blocked-ID list so the
+      // complete 50-entry profile stays below the 1,000-expression ceiling.
+      return [
+          reasons is map, count <= 50, keys.hasOnly(blockedIds),
+          (count <= 0 || values[0].matches('(?s)^.{0,1000}$')),
+          (count <= 1 || values[1].matches('(?s)^.{0,1000}$')),
+          (count <= 2 || values[2].matches('(?s)^.{0,1000}$')),
+          (count <= 3 || values[3].matches('(?s)^.{0,1000}$')),
+          (count <= 4 || values[4].matches('(?s)^.{0,1000}$')),
+          (count <= 5 || values[5].matches('(?s)^.{0,1000}$')),
+          (count <= 6 || values[6].matches('(?s)^.{0,1000}$')),
+          (count <= 7 || values[7].matches('(?s)^.{0,1000}$')),
+          (count <= 8 || values[8].matches('(?s)^.{0,1000}$')),
+          (count <= 9 || values[9].matches('(?s)^.{0,1000}$')),
+          (count <= 10 || values[10].matches('(?s)^.{0,1000}$')),
+          (count <= 11 || values[11].matches('(?s)^.{0,1000}$')),
+          (count <= 12 || values[12].matches('(?s)^.{0,1000}$')),
+          (count <= 13 || values[13].matches('(?s)^.{0,1000}$')),
+          (count <= 14 || values[14].matches('(?s)^.{0,1000}$')),
+          (count <= 15 || values[15].matches('(?s)^.{0,1000}$')),
+          (count <= 16 || values[16].matches('(?s)^.{0,1000}$')),
+          (count <= 17 || values[17].matches('(?s)^.{0,1000}$')),
+          (count <= 18 || values[18].matches('(?s)^.{0,1000}$')),
+          (count <= 19 || values[19].matches('(?s)^.{0,1000}$')),
+          (count <= 20 || values[20].matches('(?s)^.{0,1000}$')),
+          (count <= 21 || values[21].matches('(?s)^.{0,1000}$')),
+          (count <= 22 || values[22].matches('(?s)^.{0,1000}$')),
+          (count <= 23 || values[23].matches('(?s)^.{0,1000}$')),
+          (count <= 24 || values[24].matches('(?s)^.{0,1000}$')),
+          (count <= 25 || values[25].matches('(?s)^.{0,1000}$')),
+          (count <= 26 || values[26].matches('(?s)^.{0,1000}$')),
+          (count <= 27 || values[27].matches('(?s)^.{0,1000}$')),
+          (count <= 28 || values[28].matches('(?s)^.{0,1000}$')),
+          (count <= 29 || values[29].matches('(?s)^.{0,1000}$')),
+          (count <= 30 || values[30].matches('(?s)^.{0,1000}$')),
+          (count <= 31 || values[31].matches('(?s)^.{0,1000}$')),
+          (count <= 32 || values[32].matches('(?s)^.{0,1000}$')),
+          (count <= 33 || values[33].matches('(?s)^.{0,1000}$')),
+          (count <= 34 || values[34].matches('(?s)^.{0,1000}$')),
+          (count <= 35 || values[35].matches('(?s)^.{0,1000}$')),
+          (count <= 36 || values[36].matches('(?s)^.{0,1000}$')),
+          (count <= 37 || values[37].matches('(?s)^.{0,1000}$')),
+          (count <= 38 || values[38].matches('(?s)^.{0,1000}$')),
+          (count <= 39 || values[39].matches('(?s)^.{0,1000}$')),
+          (count <= 40 || values[40].matches('(?s)^.{0,1000}$')),
+          (count <= 41 || values[41].matches('(?s)^.{0,1000}$')),
+          (count <= 42 || values[42].matches('(?s)^.{0,1000}$')),
+          (count <= 43 || values[43].matches('(?s)^.{0,1000}$')),
+          (count <= 44 || values[44].matches('(?s)^.{0,1000}$')),
+          (count <= 45 || values[45].matches('(?s)^.{0,1000}$')),
+          (count <= 46 || values[46].matches('(?s)^.{0,1000}$')),
+          (count <= 47 || values[47].matches('(?s)^.{0,1000}$')),
+          (count <= 48 || values[48].matches('(?s)^.{0,1000}$')),
+          (count <= 49 || values[49].matches('(?s)^.{0,1000}$'))
+        ].hasOnly([true]);
+    }
+    function validBlockedIds(ids) {
+      let count = ids.size();
+      return ids is list && count <= 50
+        && (count == 0 || (ids.join('').matches('^[A-Za-z0-9_-]+$')
+          && ids.join('/').matches('^[A-Za-z0-9_-]{1,100}(/[A-Za-z0-9_-]{1,100})*$')));
+    }
     function validPet(data) {
-      return data.keys().hasOnly(['name', 'breed', 'ageYears', 'weightKg', 'energyLevel', 'sociability', 'anxietyLevel', 'assertiveness', 'resourceGuarding', 'playStyles', 'hardBlockedPetIds', 'notes', 'photoUrl', 'updatedAt', 'personalityAxes'])
-        && (!('personalityAxes' in data) || validPersonalityAxes(data.personalityAxes))
-        && data.name is string && data.name.size() > 0 && data.name.size() <= 40
-        && data.ageYears is number && data.ageYears >= 0 && data.ageYears <= 40
-        && data.weightKg is number && data.weightKg > 0 && data.weightKg <= 150
-        && data.energyLevel is int && data.energyLevel >= 1 && data.energyLevel <= 5
-        && data.sociability is int && data.sociability >= 1 && data.sociability <= 5
-        && data.anxietyLevel is int && data.anxietyLevel >= 1 && data.anxietyLevel <= 5
-        && data.assertiveness is int && data.assertiveness >= 1 && data.assertiveness <= 5
-        && data.resourceGuarding is int && data.resourceGuarding >= 0 && data.resourceGuarding <= 5
-        && data.playStyles is list && data.playStyles.size() <= 6
-        && data.playStyles.hasOnly(['chase', 'wrestle', 'tug', 'fetch', 'gentle', 'solo'])
-        && (!('breed' in data) || (data.breed is string && data.breed.size() <= 80))
-        && (!('hardBlockedPetIds' in data) || (data.hardBlockedPetIds is list && data.hardBlockedPetIds.size() <= 50))
-        && (!('notes' in data) || (data.notes is string && data.notes.size() <= 500))
-        && (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 1000))
-        && data.updatedAt is string && data.updatedAt.size() >= 20 && data.updatedAt.size() <= 40;
+      return [
+        data.keys().hasOnly(['name', 'breed', 'ageYears', 'weightKg', 'energyLevel', 'sociability', 'anxietyLevel', 'assertiveness', 'resourceGuarding', 'playStyles', 'hardBlockedPetIds', 'hardBlockedPetReasons', 'notes', 'facilityNotes', 'tabooNotes', 'photoUrl', 'updatedAt', 'personalityAxes']),
+        (!('personalityAxes' in data) || validPersonalityAxes(data.personalityAxes)),
+        data.name is string, data.name.size() > 0, data.name.size() <= 40,
+        data.ageYears is number, data.ageYears >= 0, data.ageYears <= 40,
+        data.weightKg is number, data.weightKg > 0, data.weightKg <= 150,
+        data.energyLevel is int, data.energyLevel >= 1, data.energyLevel <= 5,
+        data.sociability is int, data.sociability >= 1, data.sociability <= 5,
+        data.anxietyLevel is int, data.anxietyLevel >= 1, data.anxietyLevel <= 5,
+        data.assertiveness is int, data.assertiveness >= 1, data.assertiveness <= 5,
+        data.resourceGuarding is int, data.resourceGuarding >= 0, data.resourceGuarding <= 5,
+        data.playStyles is list, data.playStyles.size() <= 6,
+        data.playStyles.hasOnly(['chase', 'wrestle', 'tug', 'fetch', 'gentle', 'solo']),
+        (!('breed' in data) || (data.breed is string && data.breed.size() <= 80)),
+        (!('hardBlockedPetIds' in data) || validBlockedIds(data.hardBlockedPetIds)),
+        (!('hardBlockedPetReasons' in data) || validBlockedReasons(data.hardBlockedPetReasons, data.get('hardBlockedPetIds', []))),
+        (!('notes' in data) || (data.notes is string && data.notes.size() <= 500)),
+        (!('facilityNotes' in data) || boundedText(data.facilityNotes, 1000)),
+        (!('tabooNotes' in data) || boundedText(data.tabooNotes, 1000)),
+        (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 1000)),
+        data.updatedAt is string, data.updatedAt.size() >= 20, data.updatedAt.size() <= 40
+      ].hasOnly([true]);
     }
 
     function validIntakeMedia(item, expectedKind, maxBytes) {

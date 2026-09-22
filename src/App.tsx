@@ -9,7 +9,8 @@ import OwnerRegistration from './OwnerRegistration'
 import { OwnerInviteError } from './pages/OwnerForm'
 import { createIntakeRepository, createOperationRepository, createPetRepository, createInviteRepository, createStaffProfileRepository, createDailyOperationRepository, createManualObservationRepository, operationDateForObservation, type MatchingSnapshot, type ObservationRecord, type PetPage, type StaffProfile } from './data'
 import { intakeToPetProfile } from './domain/intakeProfile'
-import { assertOperationDate, isCurrentPlan, isCurrentProposed, type DailyOperationDay, type DailyOperationPlan, type FacilityRoomSettings, type OperationAuditEvent } from './domain/dailyOperations'
+import { isCurrentPlan, isCurrentProposed, type DailyOperationDay, type DailyOperationPlan, type FacilityRoomSettings, type OperationAuditEvent } from './domain/dailyOperations'
+import { profileChangeRequiresRecalculation } from './domain/profileSafety'
 import type { PetProfile as DomainPetProfile, RoomDefinition } from './domain/types'
 import { getFirebaseAuth } from './lib/firebase'
 import { parseAppRoute, generateOwnerInviteToken, createOwnerInviteUrl } from './lib/ownerInvite'
@@ -49,7 +50,7 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: { staff: StaffProfi
   const [facilityId] = useState(() => getFirebaseAuth()?.currentUser?.uid)
   const [pets, setPets] = useState<DomainPetProfile[]>([])
   const [dataState, setDataState] = useState<'loading' | 'ready' | 'error'>('loading')
-  const [operationDate, setOperationDate] = useState(todayInJapan)
+  const [operationDate] = useState(todayInJapan)
   const [dailyView, setDailyView] = useState(() => emptyDaily(operationDate))
   const [dailyLoading, setDailyLoading] = useState(true)
   const [dailyError, setDailyError] = useState('')
@@ -58,6 +59,7 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: { staff: StaffProfi
   const [observations, setObservations] = useState<ObservationRecord[]>([])
   const [historyError, setHistoryError] = useState('')
   const [status, setStatus] = useState<AppStatus>({ tone: 'info', message: '施設の登録情報を読み込んでいます。' })
+  const [statusDismissed, setStatusDismissed] = useState(false)
   const active = useRef(true)
   const selectedDate = useRef(operationDate)
   selectedDate.current = operationDate
@@ -74,6 +76,7 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: { staff: StaffProfi
     active.current = true
     return () => { active.current = false; dailyRequest.current += 1 }
   }, [])
+  useEffect(() => { setStatusDismissed(false) }, [status.message])
 
   const loadHistory = useCallback(async () => {
     assertFacility()
@@ -180,6 +183,50 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: { staff: StaffProfi
   const saveDailyPets = (petIds: string[]) => perform(() => requireServices().daily.saveDay({
     date: operationDate, petIds, staffId: staff.id, expectedRevision: view.day?.revision ?? 0,
   }), '当日の対象犬を保存しました。部屋割りを再計算してください。')
+  const savePetProfile = async (pet: DomainPetProfile) => {
+    if (mutationLock.current || dailyLoading) throw new Error('運用情報の読み込み完了後に保存してください。')
+    if (dailyError) throw new Error('運用情報を読み直してから保存してください。')
+    assertFacility()
+    const previous = pets.find((item) => item.id === pet.id)
+    const invalidatesPlan = Boolean(previous && profileChangeRequiresRecalculation(previous, pet)
+      && view.day?.selectedPetIds.includes(pet.id) && isCurrentPlan(view.day, view.settings, view.plan))
+    const services = requireServices()
+    const date = operationDate
+    let planInvalidated = false
+    mutationLock.current = true
+    setBusy(true)
+    try {
+      // Invalidate first: if the profile write later fails, an old plan can never remain approvable.
+      if (invalidatesPlan && view.day) {
+        await services.daily.saveDay({
+          date,
+          petIds: view.day.selectedPetIds,
+          staffId: staff.id,
+          expectedRevision: view.day.revision,
+          reason: `${pet.name}の相性計算プロフィール更新により編成案を無効化`,
+        })
+        planInvalidated = true
+        assertFacility()
+      }
+      await services.pets.save(pet)
+      assertFacility()
+      const savedPet = { ...pet, updatedAt: new Date().toISOString() }
+      if (active.current) setPets(current => current.map(item => item.id === pet.id ? savedPet : item))
+      if (planInvalidated) await loadDaily(date)
+      setStatus({ tone: 'success', message: planInvalidated
+        ? `${pet.name}の施設情報を保存し、古い編成案を無効化しました。再計算してください。`
+        : `${pet.name}の施設情報を保存しました。` })
+    } catch (error) {
+      if (planInvalidated && active.current) await loadDaily(date).catch(() => undefined)
+      if (active.current) setStatus({ tone: 'error', message: planInvalidated
+        ? `安全のため編成案は無効化しましたが、プロフィール保存を完了できませんでした。${errorText(error)}`
+        : errorText(error) })
+      throw error
+    } finally {
+      mutationLock.current = false
+      if (active.current) setBusy(false)
+    }
+  }
   const saveRooms = (rooms: RoomDefinition[]) => perform(() => requireServices().daily.saveRooms({
     rooms, staffId: staff.id, expectedRevision: view.settings?.revision ?? 0,
   }), '施設の部屋設定を保存しました。部屋割りを再計算してください。')
@@ -214,16 +261,28 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: { staff: StaffProfi
           impacts: [submission.decision === 'separate' ? '安全判断として同室不可制約を追加' : 'プロフィール変更なしで再評価'],
           recommendation: '当日の部屋割りを再計算し、スタッフが結果を確認する。', observedAt,
           staffId: staff.id, petIds, operationDate }, facilityId)
+        let expectedRevision = view.day.revision
         if (submission.decision === 'separate') {
           assertFacility()
-          const hardBlockedPetIds = [...new Set([...(primary.hardBlockedPetIds ?? []), counterpart.id])].sort()
-          await services.pets.save({ ...primary, hardBlockedPetIds })
+          // Make the previous plan unapprovable before changing a hard constraint.
+          const invalidatedDay = await services.daily.saveDay({
+            date: operationDate,
+            petIds: view.day.selectedPetIds,
+            staffId: staff.id,
+            expectedRevision,
+            reason: `${primary.name}と${counterpart.name}の同室不可登録により編成案を無効化`,
+          })
+          expectedRevision = invalidatedDay.revision
           assertFacility()
-          setPets(current => current.map(pet => pet.id === primary.id ? { ...pet, hardBlockedPetIds } : pet))
+          const hardBlockedPetIds = [...new Set([...(primary.hardBlockedPetIds ?? []), counterpart.id])].sort()
+          const hardBlockedPetReasons = { ...primary.hardBlockedPetReasons, [counterpart.id]: submission.notes.trim() }
+          await services.pets.save({ ...primary, hardBlockedPetIds, hardBlockedPetReasons })
+          assertFacility()
+          setPets(current => current.map(pet => pet.id === primary.id ? { ...pet, hardBlockedPetIds, hardBlockedPetReasons } : pet))
         }
         assertFacility()
         await services.daily.recalculate({ date: operationDate, staffId: staff.id, reason: submission.notes,
-          expectedRevision: view.day.revision, expectedRoomsRevision: view.settings?.revision ?? 0 })
+          expectedRevision, expectedRoomsRevision: view.settings?.revision ?? 0 })
         observationRetryIds.current.delete(retryKey)
       } catch (error) {
         throw new Error(`観測の保存または部屋割り案の更新を完了できませんでした。${errorText(error)}`)
@@ -239,39 +298,31 @@ function StaffWorkspace({ staff, onChangeStaff, onSignOut }: { staff: StaffProfi
     await repository.create(token, staff.id)
     return createOwnerInviteUrl(window.location.origin, token)
   }
-  const changeDate = (date: string) => {
-    if (mutationLock.current || date === selectedDate.current) return
-    try { assertOperationDate(date) } catch { return }
-    selectedDate.current = date
-    dailyRequest.current += 1
-    setDailyView(emptyDaily(date))
-    setDailyError('')
-    setDailyLoading(true)
-    setOperationDate(date)
-  }
   const refresh = async () => {
     if (mutationLock.current) return
     mutationLock.current = true
     setBusy(true)
-    try { await Promise.all([loadPets(), loadHistory(), loadDaily(operationDate)]); setStatus({ tone: 'success', message: '保存済みの登録・運用情報を更新しました。' }) }
+    try { await Promise.all([loadPets(), loadHistory(), loadDaily(operationDate)]); setStatusDismissed(true) }
     catch (error) { if (active.current) setStatus({ tone: 'error', message: errorText(error) }) }
     finally { mutationLock.current = false; if (active.current) setBusy(false) }
   }
   return <div className="app-shell">
     <header className="facility-toolbar">
-      <strong>操作担当: {staff.name}</strong><span>スタッフ選択は操作担当の記録です</span>
+      <span className="facility-toolbar__staff-note">操作担当：{staff.name}</span><span>スタッフ選択は操作担当の記録です</span>
       <button type="button" disabled={busy} onClick={onChangeStaff}>担当を変更</button>
       <button type="button" disabled={busy} onClick={onSignOut}>ログアウト</button>
     </header>
-    <div className={`app-status app-status--${status.tone}`} role={status.tone === 'error' ? 'alert' : 'status'}>
+    {status.tone === 'error' && !statusDismissed ? <div className={`app-status app-status--${status.tone}`} role="alert">
+      <button type="button" className="app-status__close" aria-label="通知を閉じる" onClick={() => setStatusDismissed(true)}>×</button>
       <span>{status.message}</span><button type="button" disabled={busy || dataState === 'loading'} onClick={() => void refresh()}>登録情報を更新</button>
-    </div>
+    </div> : null}
     {historyError && <p className="app-status app-status--error" role="alert">{historyError}</p>}
     {dailyError && <p className="app-status app-status--error" role="alert">{dailyError}</p>}
     {dataState === 'ready' ? <StaffApp pets={pets} matchingResult={currentResult} rooms={view.settings?.rooms ?? []}
       matchingHistory={matchingHistory} observations={observations} staffName={staff.name}
+      onSavePetProfile={savePetProfile}
       operationDate={operationDate} dailyOperation={view.day} roomSettings={view.settings} currentPlan={view.plan} auditEntries={view.audit}
-      busy={busy || dailyLoading || Boolean(dailyError)} onIssueInvite={issueInvite} onOperationDateChange={changeDate}
+      busy={busy || dailyLoading || Boolean(dailyError)} onIssueInvite={issueInvite}
       onSaveDailyPets={saveDailyPets} onSaveRooms={saveRooms} onOptimize={optimize} onDecidePlan={decidePlan} onObserve={applyObservation} />
       : <section className="app-state-panel" role="status"><h1>{dataState === 'loading' ? '登録情報を読み込んでいます' : '登録情報を読み込めませんでした'}</h1><p>接続を確認し、「登録情報を更新」を押してください。</p></section>}
   </div>
