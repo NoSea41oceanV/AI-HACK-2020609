@@ -96,7 +96,9 @@ body{font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;backg
 .legend span{display:inline-flex;align-items:center;gap:3px}
 
 /* Keep the staff workspace compact so the primary view fits in one viewport. */
-.pawpals-app{height:100dvh;min-height:0;overflow:hidden;padding:10px 24px}
+.pawpals-app{display:flex;flex-direction:column;height:100dvh;min-height:0;overflow:hidden;padding:10px 24px}
+.pawpals-app>main{flex:1 1 auto;min-height:0}
+.pawpals-app .friend-map-screen{height:100%;overflow-y:auto;overscroll-behavior-y:contain;scrollbar-gutter:stable;padding-right:4px}
 .pawpals-app .site-header{padding:0 4px 7px;min-height:34px}
 .pawpals-app .brand{font-size:25px;line-height:1.1}
 .pawpals-app .tagline{font-size:10px;margin-top:1px;font-weight:600}
@@ -121,4 +123,4 @@ body{font-family:"Yu Gothic","Hiragino Kaku Gothic ProN",Meiryo,sans-serif;backg
 .profile-layout .dog-list{height:100%;max-height:none}
 @media(max-width:850px){.profile-layout,.match-layout{height:calc(100dvh - 205px);min-height:430px}.profile-layout>.card,.match-layout>.card{overflow:auto}.profile-layout .dog-list{height:100%;max-height:none}.facility-toolbar{position:absolute;width:auto;padding:4px 0;border:0}.pawpals-app .site-header{padding-right:min(560px,62vw)}}
 @media(max-width:600px){.pawpals-app{padding:8px 14px}.pawpals-app .site-header{align-items:center}.pawpals-app .pawpals-header-meta{display:none}.pawpals-app .screen{padding-top:9px}}
-@media(max-width:720px){.pawpals-app{height:auto;min-height:100dvh;overflow:auto}.profile-layout,.match-layout{height:auto;min-height:0}.profile-layout>.card,.match-layout>.card{overflow:visible}.profile-layout .dog-list{height:auto}.facility-toolbar{position:static;width:auto;padding:8px 16px;border-bottom:1px solid var(--line)}.pawpals-app .site-header{padding-right:4px}}
+@media(max-width:720px){.pawpals-app{height:auto;min-height:100dvh;overflow:auto}.pawpals-app .friend-map-screen{height:auto;overflow:visible;padding-right:0}.profile-layout,.match-layout{height:auto;min-height:0}.profile-layout>.card,.match-layout>.card{overflow:visible}.profile-layout .dog-list{height:auto}.facility-toolbar{position:static;width:auto;padding:8px 16px;border-bottom:1px solid var(--line)}.pawpals-app .site-header{padding-right:4px}}

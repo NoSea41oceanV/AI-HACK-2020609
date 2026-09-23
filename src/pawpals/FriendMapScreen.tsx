@@ -66,7 +66,7 @@ export default function FriendMapScreen({ pets, matchingResult, rooms, selectedP
   const blockedCount = selectedPairs.filter((pair) => !pair.allowed).length
 
   return (
-    <section className="screen active" aria-labelledby="friend-map-title">
+    <section className="screen active friend-map-screen" aria-labelledby="friend-map-title">
       <div className="page-title">
         <div>
           <span className="eyebrow">おともだちマップ</span>

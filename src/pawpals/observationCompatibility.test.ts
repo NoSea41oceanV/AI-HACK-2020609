@@ -37,6 +37,7 @@ describe('daily compatibility views', () => {
     expect(chart).toContain('食事中は同室不可')
     expect(chart).toContain('急な接触を避ける')
     expect(chart).toContain('相性の内訳')
+    expect(map).toContain('class="screen active friend-map-screen"')
   })
 
   it('does not leak removed daily pets from an older matching result', () => {

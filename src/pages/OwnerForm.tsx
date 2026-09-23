@@ -384,8 +384,8 @@ export default function OwnerForm({ onSubmit, inviteId, sidePanel }: OwnerFormPr
 function OwnerHeader() {
   return (
     <header className="owner-form-header">
-      <div className="owner-form-brand" aria-label="PawPals">
-        <span>PawPals</span>
+      <div className="owner-form-brand" aria-label="PAWLAND">
+        <span>PAWLAND</span>
         <small>AIと一緒に、今日のわんこたちを見守る。</small>
       </div>
       <p>わんちゃん情報の登録</p>
